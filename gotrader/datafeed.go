@@ -63,7 +63,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 
 		for scanner.Scan() {
 			parts := strings.Split(scanner.Text(), ",")
-			inst, err := time.Parse("20060102 15:04:05", parts[0])
+			inst, err := time.ParseInLocation("20060102 15:04:05", parts[0], time.Local)
 			if err != nil {
 				log.Println("[ERROR] Can't parse the datetime! Skipping a candle")
 				continue

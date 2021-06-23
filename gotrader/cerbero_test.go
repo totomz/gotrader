@@ -34,3 +34,44 @@ func TestTimeAggregationNone(t *testing.T) {
 	}
 
 }
+
+func TestTimeAggregation_15Sec(t *testing.T) {
+	reader := IBZippedCSV{
+		DataFolder: testFolder,
+		Sday:       testSday,
+		Symbol:     testSymbol,
+	}
+
+	channel, err := reader.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	outchan := AggregateBySeconds(15)(channel)
+
+	var candles []Candle
+	for candle := range outchan {
+		candles = append(candles, candle)
+	}
+
+	if candles[0].Time.Second() != 15 {
+		t.Errorf("Expected 00:15 for the first candle, got %v", candles[0].Time.Second())
+	}
+	if candles[1].Time.Second() != 30 {
+		t.Errorf("Expected 00:30 for the first candle, got %v", candles[1].Time.Second())
+	}
+
+	want := Candle{
+		Open:   260.02,
+		High:   261.2,
+		Close:  260.81,
+		Low:    260,
+		Volume: 4154,
+		Time:   time.Date(2021, 1, 11, 15, 30, 15, 0, time.Local),
+	}
+
+	got := candles[0]
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("AggregateBySeconds() mismatch (-want +got):\n%s", diff)
+	}
+}

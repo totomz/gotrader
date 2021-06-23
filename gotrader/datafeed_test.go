@@ -10,11 +10,16 @@ func init() {
 	log.SetFlags(log.Ltime | log.Lshortfile)
 }
 
+var testSday = time.Date(2021, 1, 11, 0, 0, 0, 0, time.Local)
+
+const testSymbol = Symbol("FB")
+const testFolder = "datasets"
+
 func TestIBZippedCSV_ReadFile(t *testing.T) {
 	datafeed := IBZippedCSV{
-		DataFolder: "datasets",
-		Sday:       time.Date(2021, 1, 11, 0, 0, 0, 0, time.Local),
-		Symbol:     "FB",
+		DataFolder: testFolder,
+		Sday:       testSday,
+		Symbol:     testSymbol,
 	}
 
 	input, err := datafeed.Run()
