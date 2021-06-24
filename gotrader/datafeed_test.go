@@ -32,8 +32,47 @@ func TestIBZippedCSV_ReadFile(t *testing.T) {
 		candles = append(candles, candle)
 	}
 
-	if len(candles) != 25200 {
+	// How many lines? The csv has 1 line for each second.
+	// How many seconds in the time interval?
+	a := time.Date(2021, 6, 15, 15, 30, 00, 00, time.Local)
+	b := time.Date(2021, 6, 15, 21, 59, 59, 00, time.Local)
+	rows := b.Sub(a).Seconds() + 1 // +1 because seconds starts at 0, line count at 1
+
+	if len(candles) != int(rows) {
 		t.Fatalf("Expected 25200 candles got %v", len(candles))
+	}
+
+	if candles[0].Time.Add(3*time.Second).Second() != 3 {
+		t.Fatalf("Expected 3 seconds - random test")
+	}
+
+}
+
+func TestIBZippedCSV_ReadFileIgnoreDuplicatesLines(t *testing.T) {
+	datafeed := IBZippedCSV{
+		DataFolder: testFolder,
+		Sday:       testSday,
+		Symbol:     "FBDUPLICATES",
+	}
+
+	input, err := datafeed.Run()
+	if err != nil {
+		t.Fatalf("Error reading CSV file -- %v", err)
+	}
+
+	var candles []Candle
+	for candle := range input {
+		candles = append(candles, candle)
+	}
+
+	// How many lines? The csv has 1 line for each second.
+	// How many seconds in the time interval?
+	a := time.Date(2021, 6, 15, 15, 30, 00, 00, time.Local)
+	b := time.Date(2021, 6, 15, 21, 59, 59, 00, time.Local)
+	rows := b.Sub(a).Seconds() + 1 // +1 because seconds starts at 0, line count at 1
+
+	if len(candles) != int(rows) {
+		t.Fatalf("Expected %v candles got %v", rows, len(candles))
 	}
 
 	if candles[0].Time.Add(3*time.Second).Second() != 3 {

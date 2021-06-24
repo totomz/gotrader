@@ -61,6 +61,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 		scanner := bufio.NewScanner(f)
 		defer f.Close()
 
+		latestInst := time.Date(1984, 5, 8, 4, 32, 19, 0, time.Local)
 		for scanner.Scan() {
 			parts := strings.Split(scanner.Text(), ",")
 			inst, err := time.ParseInLocation("20060102 15:04:05", parts[0], time.Local)
@@ -68,6 +69,13 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 				log.Println("[ERROR] Can't parse the datetime! Skipping a candle")
 				continue
 			}
+
+			// Skip candles that are in the past (should never happen, but happened with IB csv files)
+			if inst.Before(latestInst) || inst.Equal(latestInst) {
+				log.Printf("[WARNING] skipping candle in the past! Last: %v, new:%v", latestInst.String(), inst.String())
+				continue
+			}
+			latestInst = inst
 
 			candle := Candle{
 				Time:   inst,
