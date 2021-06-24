@@ -9,7 +9,6 @@ type Strategy interface {
 
 // <editor-fold desc="Test Strategy" >
 
-// SimplePsarStrategy
 type SimplePsarStrategy struct {
 	Symbol Symbol
 }

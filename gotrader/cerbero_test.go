@@ -75,3 +75,68 @@ func TestTimeAggregation_15Sec(t *testing.T) {
 		t.Errorf("AggregateBySeconds() mismatch (-want +got):\n%s", diff)
 	}
 }
+
+type testCoundStrategy struct {
+	t         *testing.T
+	countEval int
+}
+
+func (s *testCoundStrategy) Eval(candles []Candle) {
+	s.countEval = s.countEval + 1 // Just signal that we've been invoked
+	if len(candles) != s.countEval {
+		s.t.Errorf("mmmhhhh")
+	}
+
+	// We respect the array: The latest is the newest!
+	// candles[0].Time ==> 15:00:00
+	// candles[1].Time ==> 15:00:05
+	// candles[2].Time ==> 15:00:10
+	previous := candles[0]
+	for i, this := range candles {
+		if i == 0 {
+			continue
+		}
+
+		if this.Time.Before(previous.Time) {
+			s.t.Errorf("Invalid candle order!")
+		}
+		previous = this
+	}
+
+	// latest := candles[len(candles) - 1]
+	// println(latest.Time.String())
+
+}
+
+func TestStrateyReadsCandles(t *testing.T) {
+
+	strategy := testCoundStrategy{
+		t: t,
+	}
+
+	service := Cerbero{
+		Strategy:            &strategy,
+		Broker:              &BacktestBrocker{InitialCashUSD: 30000},
+		TimeAggregationFunc: NoAggregation,
+		DataFeed: &IBZippedCSV{
+			DataFolder: testFolder,
+			Symbol:     testSymbol,
+			Sday:       testSday,
+		},
+	}
+
+	_, err := service.Run()
+
+	// How many lines? The csv has 1 line for each second.
+	// How many seconds in the time interval?
+	a := time.Date(2021, 6, 15, 15, 30, 00, 00, time.Local)
+	b := time.Date(2021, 6, 15, 21, 59, 59, 00, time.Local)
+	rows := b.Sub(a).Seconds() + 1 // +1 because seconds starts at 0, line count at 1
+	if strategy.countEval != int(rows) {
+		t.Fatalf("The strategy should have been evaluated 25200 times, but was %v", strategy.countEval)
+	}
+
+	if err != nil {
+		t.Fatal(err)
+	}
+}
