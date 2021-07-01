@@ -73,6 +73,8 @@ func mergeCandles(a Candle, b Candle) Candle {
 }
 
 type RunResult struct {
+	PL          float64
+	Commissions float64
 }
 
 // Cerbero is in honor to https://www.backtrader.com/
@@ -110,6 +112,8 @@ func (cerbero *Cerbero) Run() (RunResult, error) {
 			baseFeedCloneForTimeAggregation <- tick
 		}
 	}()
+
+	cerbero.Strategy.Initialize(cerbero.Broker)
 
 	// This guy evaluate the strategy
 	wg.Add(1)

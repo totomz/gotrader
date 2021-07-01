@@ -76,42 +76,49 @@ func TestTimeAggregation_15Sec(t *testing.T) {
 	}
 }
 
-type testCoundStrategy struct {
-	t         *testing.T
-	countEval int
+type testMockStrategy struct {
+	EvalImpl       func(candles []Candle)
+	InitializeImpl func(broker Broker)
 }
 
-func (s *testCoundStrategy) Eval(candles []Candle) {
-	s.countEval = s.countEval + 1 // Just signal that we've been invoked
-	if len(candles) != s.countEval {
-		s.t.Errorf("mmmhhhh")
+func (me *testMockStrategy) Eval(candles []Candle) {
+	if me.EvalImpl != nil {
+		me.EvalImpl(candles)
 	}
-
-	// We respect the array: The latest is the newest!
-	// candles[0].Time ==> 15:00:00
-	// candles[1].Time ==> 15:00:05
-	// candles[2].Time ==> 15:00:10
-	previous := candles[0]
-	for i, this := range candles {
-		if i == 0 {
-			continue
-		}
-
-		if this.Time.Before(previous.Time) {
-			s.t.Errorf("Invalid candle order!")
-		}
-		previous = this
-	}
-
-	// latest := candles[len(candles) - 1]
-	// println(latest.Time.String())
-
 }
 
-func TestStrateyReadsCandles(t *testing.T) {
+func (me *testMockStrategy) Initialize(broker Broker) {
+	if me.InitializeImpl != nil {
+		me.InitializeImpl(broker)
+	}
+}
 
-	strategy := testCoundStrategy{
-		t: t,
+func TestStrategyReadsCandles(t *testing.T) {
+
+	countEval := 0
+	strategy := testMockStrategy{
+		EvalImpl: func(candles []Candle) {
+			countEval = countEval + 1 // Just signal that we've been invoked
+			if len(candles) != countEval {
+				t.Errorf("mmmhhhh")
+			}
+
+			// We respect the array: The latest is the newest!
+			// candles[0].Time ==> 15:00:00
+			// candles[1].Time ==> 15:00:05
+			// candles[2].Time ==> 15:00:10
+			previous := candles[0]
+			for i, this := range candles {
+				if i == 0 {
+					continue
+				}
+
+				if this.Time.Before(previous.Time) {
+					t.Errorf("Invalid candle order!")
+				}
+				previous = this
+			}
+		},
 	}
 
 	service := Cerbero{
@@ -132,11 +139,59 @@ func TestStrateyReadsCandles(t *testing.T) {
 	a := time.Date(2021, 6, 15, 15, 30, 00, 00, time.Local)
 	b := time.Date(2021, 6, 15, 21, 59, 59, 00, time.Local)
 	rows := b.Sub(a).Seconds() + 1 // +1 because seconds starts at 0, line count at 1
-	if strategy.countEval != int(rows) {
-		t.Fatalf("The strategy should have been evaluated 25200 times, but was %v", strategy.countEval)
+	if countEval != int(rows) {
+		t.Fatalf("The strategy should have been evaluated 25200 times, but was %v", countEval)
 	}
 
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSimpleOrderExecution(t *testing.T) {
+
+	var _broker Broker
+
+	buySell := testMockStrategy{
+		InitializeImpl: func(broker Broker) {
+			_broker = broker
+		},
+		EvalImpl: func(candles []Candle) {
+			latest := candles[len(candles)-1]
+
+			if latest.Time.Equal(time.Date(2021, 1, 11, 18, 23, 30, 0, time.Local)) {
+				// Expect to buy the second after this inst @ 262.23
+				println(_broker)
+				println("BUY")
+			}
+
+			if latest.Time.Equal(time.Date(2021, 1, 11, 18, 36, 45, 0, time.Local)) {
+				// Expect to sell the second after this inst @ 262.86
+				println("SELL")
+			}
+		},
+	}
+	service := Cerbero{
+		Strategy:            &buySell,
+		Broker:              &BacktestBrocker{InitialCashUSD: 30000},
+		TimeAggregationFunc: AggregateBySeconds(15),
+		DataFeed: &IBZippedCSV{
+			DataFolder: testFolder,
+			Symbol:     testSymbol,
+			Sday:       testSday,
+		},
+	}
+
+	results, err := service.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if results.PL != 0.6 {
+		t.Fatalf("expected a P&L of $0.6, got %v", results.PL)
+	}
+
+	if results.Commissions != 0 {
+		t.Fatalf("expected 0 commissions, got %v", results.Commissions)
 	}
 }
