@@ -7,6 +7,7 @@ import (
 )
 
 func TestTimeAggregationNone(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2021, 6, 23, 15, 30, 00, 00, time.Local)
 	want := []Candle{
 		{Open: 1, High: 1, Close: 1, Low: 1, Volume: 1, Time: now},
@@ -26,7 +27,7 @@ func TestTimeAggregationNone(t *testing.T) {
 
 	var got []Candle
 	for candle := range outChannel {
-		got = append(got, candle)
+		got = append(got, candle.AggregatedCandle)
 	}
 
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -36,6 +37,8 @@ func TestTimeAggregationNone(t *testing.T) {
 }
 
 func TestTimeAggregation_15Sec(t *testing.T) {
+	t.Parallel()
+
 	reader := IBZippedCSV{
 		DataFolder: testFolder,
 		Sday:       testSday,
@@ -50,8 +53,13 @@ func TestTimeAggregation_15Sec(t *testing.T) {
 	outchan := AggregateBySeconds(15)(channel)
 
 	var candles []Candle
-	for candle := range outchan {
-		candles = append(candles, candle)
+	for aggregated := range outchan {
+		if aggregated.IsAggregated {
+			candles = append(candles, aggregated.AggregatedCandle)
+		}
+	}
+	if len(candles) == 0 {
+		t.Fatalf("outchan closed?")
 	}
 
 	if candles[0].Time.Second() != 15 {
@@ -81,19 +89,20 @@ type testMockStrategy struct {
 	InitializeImpl func(broker Broker)
 }
 
-func (me *testMockStrategy) Eval(candles []Candle) {
-	if me.EvalImpl != nil {
-		me.EvalImpl(candles)
+func (s *testMockStrategy) Eval(candles []Candle) {
+	if s.EvalImpl != nil {
+		s.EvalImpl(candles)
 	}
 }
 
-func (me *testMockStrategy) Initialize(broker Broker) {
-	if me.InitializeImpl != nil {
-		me.InitializeImpl(broker)
+func (s *testMockStrategy) Initialize(broker Broker) {
+	if s.InitializeImpl != nil {
+		s.InitializeImpl(broker)
 	}
 }
 
 func TestStrategyReadsCandles(t *testing.T) {
+	t.Parallel()
 
 	countEval := 0
 	strategy := testMockStrategy{
@@ -123,7 +132,7 @@ func TestStrategyReadsCandles(t *testing.T) {
 
 	service := Cerbero{
 		Strategy:            &strategy,
-		Broker:              &BacktestBrocker{InitialCashUSD: 30000},
+		Broker:              NewBacktestBrocker(30000),
 		TimeAggregationFunc: NoAggregation,
 		DataFeed: &IBZippedCSV{
 			DataFolder: testFolder,
@@ -132,7 +141,7 @@ func TestStrategyReadsCandles(t *testing.T) {
 		},
 	}
 
-	_, err := service.Run()
+	err := service.Run()
 
 	// How many lines? The csv has 1 line for each second.
 	// How many seconds in the time interval?
@@ -148,9 +157,11 @@ func TestStrategyReadsCandles(t *testing.T) {
 	}
 }
 
-func TestSimpleOrderExecution(t *testing.T) {
-
+func TestOrderExecutionAfter1sec(t *testing.T) {
+	t.Parallel()
 	var _broker Broker
+	var _orderID string
+	var err error
 
 	buySell := testMockStrategy{
 		InitializeImpl: func(broker Broker) {
@@ -161,19 +172,59 @@ func TestSimpleOrderExecution(t *testing.T) {
 
 			if latest.Time.Equal(time.Date(2021, 1, 11, 18, 23, 30, 0, time.Local)) {
 				// Expect to buy the second after this inst @ 262.23
-				println(_broker)
-				println("BUY")
+				_orderID, err = _broker.SubmitOrder(Order{
+					Id:     RandUid(),
+					Size:   1,
+					Symbol: "FB",
+					Type:   OrderBuy,
+				})
+				if err != nil {
+					t.Errorf("error buy order -- %v", err)
+				}
+			}
+
+			// Expect the order to get fullfilled 1 second after being submitted
+			// The strategy runs every 15 seconds, but the order are processed at 1s resolution
+			if latest.Time.Equal(time.Date(2021, 1, 11, 18, 23, 45, 0, time.Local)) {
+				order, err := _broker.GetOrderByID(_orderID)
+				if err != nil {
+					t.Errorf("error getting order status -- %v", err)
+				}
+				if order.Status != OrderStatusFullFilled {
+					t.Errorf("Expected testorder to be OrderStatusAccepted, was %v", order.Status)
+				}
+				if order.SizeFilled != 1 {
+					t.Errorf("Expected testorder size filled to be 1, was %v", order.SizeFilled)
+				}
+
+				position, found := _broker.GetPosition(order.Symbol)
+				if !found {
+					t.Errorf("open position not found!")
+				}
+
+				if !almostEqual(position.AvgPrice, 262.23) {
+					t.Errorf("Expected testorder avg filed price to be 262.86, was %v", position.AvgPrice)
+				}
+
 			}
 
 			if latest.Time.Equal(time.Date(2021, 1, 11, 18, 36, 45, 0, time.Local)) {
 				// Expect to sell the second after this inst @ 262.86
-				println("SELL")
+				_, err = _broker.SubmitOrder(Order{
+					Id:     RandUid(),
+					Size:   1,
+					Symbol: "FB",
+					Type:   OrderSell,
+				})
+				if err != nil {
+					t.Errorf("error buy order -- %v", err)
+				}
 			}
 		},
 	}
 	service := Cerbero{
 		Strategy:            &buySell,
-		Broker:              &BacktestBrocker{InitialCashUSD: 30000},
+		Broker:              NewBacktestBrocker(1000),
 		TimeAggregationFunc: AggregateBySeconds(15),
 		DataFeed: &IBZippedCSV{
 			DataFolder: testFolder,
@@ -182,16 +233,14 @@ func TestSimpleOrderExecution(t *testing.T) {
 		},
 	}
 
-	results, err := service.Run()
+	err = service.Run()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if results.PL != 0.6 {
-		t.Fatalf("expected a P&L of $0.6, got %v", results.PL)
+	// At the end, I should have a profit os -1@262.86 +1@262.23 = $0.63
+	if _broker.AvailableCash() != 1000.63 {
+		t.Fatalf("final cahs does not match, got %v", _broker.AvailableCash())
 	}
 
-	if results.Commissions != 0 {
-		t.Fatalf("expected 0 commissions, got %v", results.Commissions)
-	}
 }
