@@ -16,8 +16,14 @@ type Candle struct {
 	High   float64
 	Close  float64
 	Low    float64
-	Volume float64
+	Volume int64
+	Symbol Symbol
 	Time   time.Time
+}
+
+func (candle Candle) TimeStr() string {
+	//return fmt.Sprintf("%v [%s]", candle.Time.Format("2006-01-02 15:04:05"), candle.Symbol)
+	return fmt.Sprintf(" %-5s %v", candle.Symbol, candle.Time.Format("15:04:05"))
 }
 
 // DataFeed provides a stream of Candle.
@@ -78,12 +84,13 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 			latestInst = inst
 
 			candle := Candle{
+				Symbol: d.Symbol,
 				Time:   inst,
 				Open:   mustFloat(parts[1]),
 				High:   mustFloat(parts[2]),
 				Low:    mustFloat(parts[3]),
 				Close:  mustFloat(parts[4]),
-				Volume: mustFloat(parts[5]),
+				Volume: mustInt(parts[5]),
 			}
 			stream <- candle
 		}
@@ -98,6 +105,15 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 
 func mustFloat(str string) float64 {
 	n, err := strconv.ParseFloat(str, 64)
+	if err != nil {
+		log.Fatalf("Cant parse the string %s to a float64 -- %v", str, err)
+		return 0
+	}
+	return n
+}
+
+func mustInt(str string) int64 {
+	n, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
 		log.Fatalf("Cant parse the string %s to a float64 -- %v", str, err)
 		return 0

@@ -5,24 +5,34 @@ import (
 	"sync"
 )
 
-// TimeAggregation aggregate the candles from a channel and write the output in a separate channel
-type TimeAggregation func(<-chan Candle) <-chan Candle
+type AggregatedCandle struct {
+	Original         Candle
+	AggregatedCandle Candle
+	IsAggregated     bool
+}
 
-func NoAggregation(inputCandleChan <-chan Candle) <-chan Candle {
-	outchan := make(chan Candle, 1)
+// TimeAggregation aggregate the candles from a channel and write the output in a separate channel
+type TimeAggregation func(<-chan Candle) <-chan AggregatedCandle
+
+func NoAggregation(inputCandleChan <-chan Candle) <-chan AggregatedCandle {
+	outchan := make(chan AggregatedCandle, 1)
 
 	go func() {
 		defer close(outchan)
 		for candle := range inputCandleChan {
-			outchan <- candle
+			outchan <- AggregatedCandle{
+				Original:         candle,
+				AggregatedCandle: candle,
+				IsAggregated:     true,
+			}
 		}
 	}()
 	return outchan
 }
 
 func AggregateBySeconds(sec int) TimeAggregation {
-	return func(inputCandleChan <-chan Candle) <-chan Candle {
-		outchan := make(chan Candle, 10000)
+	return func(inputCandleChan <-chan Candle) <-chan AggregatedCandle {
+		outchan := make(chan AggregatedCandle, 10000)
 
 		go func() {
 			defer close(outchan)
@@ -30,8 +40,14 @@ func AggregateBySeconds(sec int) TimeAggregation {
 			aggregated := Candle{}
 			for candle := range inputCandleChan {
 				aggregated = mergeCandles(aggregated, candle)
+
+				outchan <- AggregatedCandle{
+					Original:         candle,
+					AggregatedCandle: aggregated,
+					IsAggregated:     i == sec,
+				}
+
 				if i == sec {
-					outchan <- aggregated
 					aggregated = Candle{}
 					i = 0
 				}
@@ -72,9 +88,6 @@ func mergeCandles(a Candle, b Candle) Candle {
 	return merged
 }
 
-type RunResult struct {
-}
-
 // Cerbero is in honor to https://www.backtrader.com/
 // that deeply inspired this code
 type Cerbero struct {
@@ -84,7 +97,7 @@ type Cerbero struct {
 	TimeAggregationFunc TimeAggregation
 }
 
-func (cerbero *Cerbero) Run() (RunResult, error) {
+func (cerbero *Cerbero) Run() error {
 	var wg sync.WaitGroup
 
 	// cerbero consumes from the basefeed and need to fan-out the candles to multiple channels:
@@ -94,8 +107,8 @@ func (cerbero *Cerbero) Run() (RunResult, error) {
 	baseFeedCloneForTimeAggregation := make(chan Candle, 1000)
 	aggregatedFeed := cerbero.TimeAggregationFunc(baseFeedCloneForTimeAggregation)
 
-	// async consume the candles and feed them
-	// in our fan-out channels
+	// this routine consume the candles and feed them
+	// in the fan-out channel
 	wg.Add(1)
 	go func() {
 		defer close(baseFeedCloneForTimeAggregation)
@@ -111,20 +124,31 @@ func (cerbero *Cerbero) Run() (RunResult, error) {
 		}
 	}()
 
-	// This guy evaluate the strategy
+	cerbero.Strategy.Initialize(cerbero.Broker)
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		var candles []Candle
 		log.Println("started strategy routine")
 
-		for candle := range aggregatedFeed {
-			candles = append(candles, candle)
-			cerbero.Strategy.Eval(candles)
+		for aggregated := range aggregatedFeed {
+
+			// notify the broker that it must process all the orders in the queue
+			// run it synchronously with the datafeed for backtest.
+			// Realtime broker may use this as a "pre-strategy" entry point
+			cerbero.Broker.ProcessOrders(aggregated.Original)
+
+			if aggregated.IsAggregated {
+				candles = append(candles, aggregated.AggregatedCandle)
+				cerbero.Strategy.Eval(candles)
+			}
 		}
 	}()
 
 	wg.Wait()
+	cerbero.Broker.Shutdown()
+
 	log.Println("trading done! Besst, Totomz")
-	return RunResult{}, nil
+	return nil
 }
