@@ -1,4 +1,4 @@
-module github.com/totomz/autotrader
+module github.com/totomz/gotrader
 
 go 1.16
 

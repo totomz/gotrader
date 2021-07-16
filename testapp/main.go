@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/totomz/autotrader/gotrader"
+	"github.com/totomz/gotrader"
 	"log"
 	"time"
 )
