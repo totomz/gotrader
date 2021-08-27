@@ -9,5 +9,9 @@ build: get
 get:
 	go get -t -v 
 
-test: get build	
+test: get build		
+	go test -parallel 8 -count=1 -cover $$(go list ./... | grep -v /interactivebrokers)
+	#go test -parallel 8 -count=1 -cover ./...
+
+test-all: get build		
 	go test -parallel 8 -count=1 -cover ./...
