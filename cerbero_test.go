@@ -86,7 +86,7 @@ func TestTimeAggregation_15Sec(t *testing.T) {
 
 type testMockStrategy struct {
 	EvalImpl       func(candles []Candle)
-	InitializeImpl func(broker Broker)
+	InitializeImpl func(cerbero *Cerbero)
 }
 
 func (s *testMockStrategy) Eval(candles []Candle) {
@@ -95,7 +95,7 @@ func (s *testMockStrategy) Eval(candles []Candle) {
 	}
 }
 
-func (s *testMockStrategy) Initialize(broker Broker) {
+func (s *testMockStrategy) Initialize(broker *Cerbero) {
 	if s.InitializeImpl != nil {
 		s.InitializeImpl(broker)
 	}
@@ -164,8 +164,8 @@ func TestOrderExecutionAfter1sec(t *testing.T) {
 	var err error
 
 	buySell := testMockStrategy{
-		InitializeImpl: func(broker Broker) {
-			_broker = broker
+		InitializeImpl: func(cerbero *Cerbero) {
+			_broker = cerbero.Broker
 		},
 		EvalImpl: func(candles []Candle) {
 			latest := candles[len(candles)-1]

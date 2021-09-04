@@ -11,6 +11,12 @@ type AggregatedCandle struct {
 	IsAggregated     bool
 }
 
+const (
+	SIGNAL_CASH    = "cash"
+	SIGNAL_TRADES  = "trades"
+	SIGNAL_CANDLES = "candles"
+)
+
 // TimeAggregation aggregate the candles from a channel and write the output in a separate channel
 type TimeAggregation func(<-chan Candle) <-chan AggregatedCandle
 
@@ -95,10 +101,15 @@ type Cerbero struct {
 	Strategy            Strategy
 	DataFeed            DataFeed
 	TimeAggregationFunc TimeAggregation
+
+	signals Signal
 }
 
 func (cerbero *Cerbero) Run() error {
 	var wg sync.WaitGroup
+
+	// reset the signals
+	cerbero.signals = Signal{values: map[string]interface{}{}}
 
 	// cerbero consumes from the basefeed and need to fan-out the candles to multiple channels:
 	// --> the time aggregator
@@ -124,7 +135,7 @@ func (cerbero *Cerbero) Run() error {
 		}
 	}()
 
-	cerbero.Strategy.Initialize(cerbero.Broker)
+	cerbero.Strategy.Initialize(cerbero)
 
 	wg.Add(1)
 	go func() {
@@ -140,6 +151,13 @@ func (cerbero *Cerbero) Run() error {
 			cerbero.Broker.ProcessOrders(aggregated.Original)
 
 			if aggregated.IsAggregated {
+
+				// Once orders are processed, we should update the available cash
+				// and the broker state
+				v := cerbero.Broker.AvailableCash()
+				cerbero.signals.AppendFloat(aggregated.AggregatedCandle, SIGNAL_CASH, v)
+				cerbero.signals.AppendCandle(aggregated.AggregatedCandle, SIGNAL_CANDLES, aggregated.AggregatedCandle)
+
 				candles = append(candles, aggregated.AggregatedCandle)
 				cerbero.Strategy.Eval(candles)
 			}
@@ -151,4 +169,40 @@ func (cerbero *Cerbero) Run() error {
 
 	log.Println("trading done! Besst, Totomz")
 	return nil
+}
+
+func (cerbero *Cerbero) Signals() *Signal {
+	return &cerbero.signals
+}
+
+func Open(candles []Candle) []float64 {
+	res := make([]float64, len(candles))
+	for i, c := range candles {
+		res[i] = c.Open
+	}
+	return res
+}
+
+func Close(candles []Candle) []float64 {
+	res := make([]float64, len(candles))
+	for i, c := range candles {
+		res[i] = c.Close
+	}
+	return res
+}
+
+func High(candles []Candle) []float64 {
+	res := make([]float64, len(candles))
+	for i, c := range candles {
+		res[i] = c.High
+	}
+	return res
+}
+
+func Low(candles []Candle) []float64 {
+	res := make([]float64, len(candles))
+	for i, c := range candles {
+		res[i] = c.Low
+	}
+	return res
 }
