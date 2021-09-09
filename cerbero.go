@@ -12,10 +12,16 @@ type AggregatedCandle struct {
 }
 
 const (
-	SIGNAL_CASH    = "cash"
-	SIGNAL_TRADES  = "trades"
-	SIGNAL_CANDLES = "candles"
+	SIGNAL_CASH        = "cash"
+	SIGNAL_TRADES_BUY  = "trades_buy"
+	SIGNAL_TRADES_SELL = "trades_sell"
+	SIGNAL_CANDLES     = "candles"
 )
+
+var ORDERTYPE_TO_SIGNALE = map[OrderType]string{
+	OrderBuy:  SIGNAL_TRADES_BUY,
+	OrderSell: SIGNAL_TRADES_SELL,
+}
 
 // TimeAggregation aggregate the candles from a channel and write the output in a separate channel
 type TimeAggregation func(<-chan Candle) <-chan AggregatedCandle
@@ -148,7 +154,10 @@ func (cerbero *Cerbero) Run() error {
 			// notify the broker that it must process all the orders in the queue
 			// run it synchronously with the datafeed for backtest.
 			// Realtime broker may use this as a "pre-strategy" entry point
-			cerbero.Broker.ProcessOrders(aggregated.Original)
+			ordersExecuted := cerbero.Broker.ProcessOrders(aggregated.Original)
+			for _, order := range ordersExecuted {
+				cerbero.signals.AppendFloat(aggregated.AggregatedCandle, ORDERTYPE_TO_SIGNALE[order.Type], float64(order.Type))
+			}
 
 			if aggregated.IsAggregated {
 

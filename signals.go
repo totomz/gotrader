@@ -101,60 +101,6 @@ func (signal *Signal) Get(key string) (interface{}, bool) {
 
 func (signal *Signal) ToJson() ([]byte, error) {
 
-	//type plotlyCandle struct {
-	//	X []string `json:"x"`
-	//	Open []float64 `json:"open"`
-	//	High []float64 `json:"high"`
-	//	Close []float64 `json:"close"`
-	//	Low []float64 `json:"low"`
-	//	Volume []int64 `json:"volume"`
-	//}
-	//plotlyCandles := plotlyCandle{}
-	//
-	//candles := signal.values[SIGNAL_CANDLES]
-	//for _, c := range candles {
-	//	// Mon Jan 2 15:04:05 -0700 MST 2006
-	//	plotlyCandles.X = append(plotlyCandles.X, c.Inst.Format("2006-01-02 15:04:05"))	// yyyy-mm-dd HH:MM:SS
-	//	plotlyCandles.Open = append(plotlyCandles.Open, c.Value.(Candle).Open)
-	//	plotlyCandles.High = append(plotlyCandles.High, c.Value.(Candle).High)
-	//	plotlyCandles.Low = append(plotlyCandles.Low, c.Value.(Candle).Low)
-	//	plotlyCandles.Close = append(plotlyCandles.Close, c.Value.(Candle).Close)
-	//	plotlyCandles.Volume = append(plotlyCandles.Volume, c.Value.(Candle).Volume)
-	//
-	//}
-	//
-	///// VOLUMES
-	//type plotlyVolume struct {
-	//	X []string `json:"x"`
-	//	Y []int64 `json:"y"`
-	//}
-	//plotlyVolumeSerie := plotlyVolume{}
-	//for _, c := range candles {
-	//	// Mon Jan 2 15:04:05 -0700 MST 2006
-	//	plotlyVolumeSerie.X = append(plotlyVolumeSerie.X, c.Inst.Format("2006-01-02 15:04:05"))	// yyyy-mm-dd HH:MM:SS
-	//	plotlyVolumeSerie.Y = append(plotlyVolumeSerie.Y, c.Value.(Candle).Volume)
-	//}
-	//
-	//
-	////type plotlyResults struct {
-	////	Candles plotlyCandle `json:"candles"`
-	////	Volume plotlyVolume `json:"volume"`
-	////}
-	////result := plotlyResults{
-	////	Candles: plotlyCandles,
-	////	Volume: plotlyVolumeSerie,
-	////}
-	//result := map[string]interface{}{}
-	//for key, values := range signal.values {
-	//	result[key] = values
-	//}
-	//result["candles"] = plotlyCandles
-	//result["volume"] = plotlyVolumeSerie
-	////result := map[string]interface{}{
-	////	"candles": plotlyCandles,
-	////	"volume": plotlyVolumeSerie,
-	////}
-
 	data, err := json.Marshal(signal.values)
 	if err != nil {
 		return []byte{}, err
@@ -173,6 +119,5 @@ func (signal *Signal) ToJson() ([]byte, error) {
 		}
 	*/
 
-	println(string(data))
 	return data, nil
 }

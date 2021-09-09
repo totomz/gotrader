@@ -26,7 +26,7 @@ func TestAddGetSignals(t *testing.T) {
 	}
 
 	// Candles, trades, cash are always added to the signals
-	wantedKeys := []string{SIGNAL_CASH, SIGNAL_TRADES, SIGNAL_CANDLES, "volume", "keya", "keyb"}
+	wantedKeys := []string{SIGNAL_CASH, SIGNAL_TRADES_BUY, SIGNAL_TRADES_SELL, SIGNAL_CANDLES, "volume", "keya", "keyb"}
 	gotKeys := signals.Keys()
 
 	sort.Strings(wantedKeys)

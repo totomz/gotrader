@@ -11,14 +11,33 @@ import (
 // Eval evaluate the strategy. candles[0] is the latest, candles[1] is the latest - 1, and so on
 type MockStrategy struct {
 	signals Signal
+	broker  Broker
 }
 
 func (s *MockStrategy) Initialize(cerbero *Cerbero) {
 	s.signals = cerbero.signals
+	s.broker = cerbero.Broker
 }
 func (s *MockStrategy) Eval(candles []Candle) {
 	c := candles[len(candles)-1]
 	s.signals.AppendFloat(c, "pippo", c.High)
+
+	if c.Time.Equal(time.Date(2021, 1, 11, 17, 11, 30, 00, time.Local)) {
+		_, _ = s.broker.SubmitOrder(Order{
+			Size:   50,
+			Symbol: "FB",
+			Type:   OrderBuy,
+		})
+	}
+
+	if c.Time.Equal(time.Date(2021, 1, 11, 18, 32, 30, 00, time.Local)) {
+		_, _ = s.broker.SubmitOrder(Order{
+			Size:   50,
+			Symbol: "FB",
+			Type:   OrderSell,
+		})
+	}
+
 }
 
 func TestSignalsStrategy(t *testing.T) {
@@ -46,7 +65,7 @@ func TestSignalsStrategy(t *testing.T) {
 	signals := service.Signals().values
 
 	// Candles, trades, cash are always added to the signals
-	wantedKeys := []string{SIGNAL_CASH, SIGNAL_TRADES, SIGNAL_CANDLES, "pippo"}
+	wantedKeys := []string{SIGNAL_CASH, SIGNAL_TRADES_SELL, SIGNAL_TRADES_BUY, SIGNAL_CANDLES, "pippo"}
 	var gotKeys []string
 	for k, _ := range signals {
 		gotKeys = append(gotKeys, k)
@@ -60,14 +79,9 @@ func TestSignalsStrategy(t *testing.T) {
 	}
 
 	// Standard signals
-	cash, found := signals[SIGNAL_CASH].(TimeSerieFloat)
+	_, found := signals[SIGNAL_CASH].(TimeSerieFloat)
 	if !found {
 		t.Error("signal CASH not found!")
-	}
-	for _, val := range cash.Y {
-		if val != 30000 {
-			t.Error("cash has changed?")
-		}
 	}
 
 	_, found = signals["pippo"]

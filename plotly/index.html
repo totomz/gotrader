@@ -43,16 +43,23 @@
     const layout = {
         showlegend: true,
         hovermode: 'x',
-        xaxis: {rangeslider: {visible: false},},
+        xaxis: {
+            rangeslider: {visible: false},
+            "showspikes": true,
+            "spikemode": "across",
+            "spikedash": "solid",
+            "spikecolor": "#000000",
+            "spikethickness": 2
+        },
         yaxis: {autorange: true},
         dragmode: 'zoom',
         margin,
         height: 150,
     };
     const options = {displayModeBar: true}
-    
+
     const DATASET_URL = "/gotrader/plotly/datatest.json";
-    
+
     $(document).ready(() => {
 
         $('#btn_addnewtop').click(e => {
