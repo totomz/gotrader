@@ -6,6 +6,10 @@
     <script src='./bomber.js'></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KyZXEAg3QhqLMpG8r+8fhAXLRk2vvoC2f3B09zVXn8CA5QIVfZOJ3BCsw2P0p/We" crossorigin="anonymous">
     <style>
+        html, body {
+            height: 100%;
+        }
+
         .vertical-center {
             min-height: 100%; /* Fallback for browsers do NOT support vh unit */
             min-height: 100vh; /* These two lines are counted as one :-)       */
@@ -19,151 +23,48 @@
 <body>
 <div class="w-100">
     <div class="row vertical-center">
-        <div class="col-11">
-            <div id="cash"></div>
+        <div class="col-11" id="chartPanel">
             <div id='mainCandles'></div>
         </div>
         <div class="col-1">
             <button id="btn_addnewtop">Add Top</button>
             <button class="btn_add_serie">Add Serie</button>
             <button id="btn_addnewbottom">Add Bottom</button>
-            <select id="serieList" multiple="multiple">
-                
-            </select>
+            <select id="serieList" multiple="multiple"></select>
+
         </div>
     </div>
 </div>
 
 </body>
 <script>
-    var lacacca;
+    var dataset_golobal;
+    const margin = {r: 10, t: 25, b: 40, l: 60};
+    const layout = {
+        showlegend: true,
+        hovermode: 'x',
+        xaxis: {rangeslider: {visible: false},},
+        yaxis: {autorange: true},
+        dragmode: 'zoom',
+        margin,
+        height: 150,
+    };
+    const options = {displayModeBar: true}
+    
+    const DATASET_URL = "/gotrader/plotly/datatest.json";
+    
     $(document).ready(() => {
-        
+
         $('#btn_addnewtop').click(e => {
             console.log("top", e);
             console.log("selected", $('#serieList').val()[0]);
         })
-        
-        async function init() {
-            /* Get the simulation results */
-            const dataset = await $.get("/datatest.json");
-            // const dataset = await $.get("/datatest_originale.json");
-            lacacca = dataset;
-            console.log("downloaded dataset", dataset);
-            
-            Object.keys(dataset).forEach(k => {
-                $("#serieList").append(new Option(k, k));
-            })
-            
-            /* draw the "well known charts" */
-            const trace_candles = {
-                x: dataset.candles.x,
-                close: dataset.candles.close,
-                high: dataset.candles.high,
-                low: dataset.candles.low,
-                open: dataset.candles.open,
-                name: 'Candles',
-                decreasing: {line: {color: '#7F7F7F'}},
-                increasing: {line: {color: '#17BECF'}},
-                line: {color: 'rgba(31,119,180,1)'},
-                type: 'candlestick',
-                xaxis: 'x',
-                yaxis: 'y'
-            };
-            
-            const volume = {
-                x: dataset.candles.x,
-                y: dataset.candles.volume,
-                type: 'bar',
-                xaxis: 'x2',
-                yaxis: 'y2',
-                name: 'Volume',
-                height: 600
-            }
-            
-            // const cash = {
-            //     x: dataset.cash.x,
-            //     y: dataset.cash.y,
-            //     type: 'scatter',
-            //     // xaxis: 'x2',
-            //     // yaxis: 'y2',
-            //     height: 600
-            // }
-            
-            const data = [
-                trace_candles,
-                volume,
-                // cash
-            ];
 
-            const layout = {
-                grid: {
-                    rows: 3,
-                    columns: 1,
-                    pattern: 'independent'
-                },
-                showlegend: true,
-                hovermode: 'x',        
-                xaxis: {
-                    rangeslider: { visible: false },
-                    autorange: true,
-                    showspikes: true,
-                    spikemode: 'across',
-                    spikesnap: 'cursor',
-                    showline: true,
-                    showgrid: true,
-                },
-                // xaxis2: {
-                //     rangeslider: { visible: false },
-                //     showspikes: true,
-                //     spikemode: 'across',
-                //     spikesnap: 'cursor',
-                //     showline: true,
-                //     showgrid: true,
-                //     matches: "x"
-                // },
-                yaxis: {
-                    autorange: true,
-                },
-                // yaxis2: {
-                //     rangemode: 'auto',
-                // },
-                // spikesnap: 'cursor',
-                dragmode: 'zoom',
-                margin: {
-                    r: 10,
-                    t: 25,
-                    b: 40,
-                    l: 60
-                },
-                // autosize: true,
-                height: 1200,
-                // showlegend: false,
-                // xaxis: {
-                //     autorange: true,
-                //     rangeslider: {
-                //         //range: ['2017-01-17 12:00', '2017-02-10 12:00']
-                //     },
-                //     title: 'Date',
-                //     type: 'datetime'
-                // },
-                // yaxis: {
-                //     autorange: true,
-                //     type: 'linear'
-                // },
-                // annotations: [],
-                // shapes: []
-            };
-    
-            Plotly.newPlot('mainCandles', data, layout);
-            
-        }
-        init();
-        
-        function chartCash(){
-            
-        }
-
+        addCharts().then(() => {
+            console.log("ready")
+        })
     })
+
+
 </script>
 </html>
