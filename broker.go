@@ -45,7 +45,8 @@ type Order struct {
 	Type   OrderType
 	Status OrderStatus
 	// SizeFilled is always > 0
-	SizeFilled int64
+	SizeFilled     int64
+	AvgFilledPrice float64
 }
 
 func (o Order) String() string {
@@ -212,7 +213,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 
 		// Update the order status
 		order.SizeFilled += int64(math.Abs(float64(orderQty)))
-
+		order.AvgFilledPrice = candle.Open // <-- this is a bug. Need to calculate a weighted average
 		if order.SizeFilled == order.Size {
 			order.Status = OrderStatusFullFilled
 		}

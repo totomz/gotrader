@@ -10,7 +10,7 @@ type Signal struct {
 }
 
 type TimeSerieCandle struct {
-	X      []string  `json:"x"`
+	X      []int64   `json:"x"`
 	Open   []float64 `json:"open"`
 	High   []float64 `json:"high"`
 	Close  []float64 `json:"close"`
@@ -19,7 +19,7 @@ type TimeSerieCandle struct {
 }
 
 type TimeSerieFloat struct {
-	X []string  `json:"x"`
+	X []int64   `json:"x"`
 	Y []float64 `json:"y"`
 }
 
@@ -34,7 +34,8 @@ func (signal *Signal) AppendCandle(candle Candle, key string, value Candle) {
 	_, found := signal.values[key]
 	if !found {
 		signal.values[key] = TimeSerieCandle{
-			X:      []string{candle.Time.Format("2006-01-02 15:04:05")},
+			//X:      []string{candle.Time.Format("2006-01-02 15:04:05")},
+			X:      []int64{candle.Time.Unix() * 1000},
 			Open:   []float64{value.Open},
 			High:   []float64{value.High},
 			Close:  []float64{value.Close},
@@ -45,7 +46,8 @@ func (signal *Signal) AppendCandle(candle Candle, key string, value Candle) {
 	}
 
 	cval := signal.values[key].(TimeSerieCandle)
-	cval.X = append(cval.X, candle.Time.Format("2006-01-02 15:04:05"))
+	//cval.X = append(cval.X, candle.Time.Format("2006-01-02 15:04:05"))
+	cval.X = append(cval.X, candle.Time.Unix()*1000)
 	cval.Open = append(cval.Open, value.Open)
 	cval.High = append(cval.High, value.High)
 	cval.Close = append(cval.Close, value.Close)
@@ -54,7 +56,12 @@ func (signal *Signal) AppendCandle(candle Candle, key string, value Candle) {
 	signal.values[key] = cval
 }
 
+func (signal *Signal) AppendNil(candle Candle, key string, value float64) {
+
+}
+
 func (signal *Signal) AppendFloat(candle Candle, key string, value float64) {
+
 	// Init values before appending
 	if signal.values == nil {
 		signal.values = map[string]interface{}{}
@@ -63,14 +70,14 @@ func (signal *Signal) AppendFloat(candle Candle, key string, value float64) {
 	_, found := signal.values[key]
 	if !found {
 		signal.values[key] = TimeSerieFloat{
-			X: []string{candle.Time.Format("2006-01-02 15:04:05")},
+			X: []int64{candle.Time.Unix() * 1000},
 			Y: []float64{value},
 		}
 		return
 	}
 
 	cval := signal.values[key].(TimeSerieFloat)
-	cval.X = append(cval.X, candle.Time.Format("2006-01-02 15:04:05"))
+	cval.X = append(cval.X, candle.Time.Unix()*1000)
 	cval.Y = append(cval.Y, value)
 	signal.values[key] = cval
 }

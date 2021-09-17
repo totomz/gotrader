@@ -1,6 +1,7 @@
 package gotrader
 
 import (
+	"github.com/cinar/indicator"
 	"github.com/google/go-cmp/cmp"
 	"os"
 	"sort"
@@ -20,7 +21,9 @@ func (s *MockStrategy) Initialize(cerbero *Cerbero) {
 }
 func (s *MockStrategy) Eval(candles []Candle) {
 	c := candles[len(candles)-1]
-	s.signals.AppendFloat(c, "pippo", c.High)
+	psar, trend := indicator.ParabolicSar(High(candles), Low(candles), Close(candles))
+	s.signals.AppendFloat(c, "psar", psar[len(psar)-1])
+	s.signals.AppendFloat(c, "psar_trend", float64(trend[len(trend)-1]))
 
 	if c.Time.Equal(time.Date(2021, 1, 11, 17, 11, 30, 00, time.Local)) {
 		_, _ = s.broker.SubmitOrder(Order{
@@ -65,7 +68,7 @@ func TestSignalsStrategy(t *testing.T) {
 	signals := service.Signals().values
 
 	// Candles, trades, cash are always added to the signals
-	wantedKeys := []string{SIGNAL_CASH, SIGNAL_TRADES_SELL, SIGNAL_TRADES_BUY, SIGNAL_CANDLES, "pippo"}
+	wantedKeys := []string{SIGNAL_CASH, SIGNAL_TRADES_SELL, SIGNAL_TRADES_BUY, SIGNAL_CANDLES, "psar", "psar_trend"}
 	var gotKeys []string
 	for k, _ := range signals {
 		gotKeys = append(gotKeys, k)
@@ -82,11 +85,6 @@ func TestSignalsStrategy(t *testing.T) {
 	_, found := signals[SIGNAL_CASH].(TimeSerieFloat)
 	if !found {
 		t.Error("signal CASH not found!")
-	}
-
-	_, found = signals["pippo"]
-	if !found {
-		t.Error("signal pippo not found!")
 	}
 
 	// get the JSON

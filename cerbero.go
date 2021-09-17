@@ -156,7 +156,7 @@ func (cerbero *Cerbero) Run() error {
 			// Realtime broker may use this as a "pre-strategy" entry point
 			ordersExecuted := cerbero.Broker.ProcessOrders(aggregated.Original)
 			for _, order := range ordersExecuted {
-				cerbero.signals.AppendFloat(aggregated.AggregatedCandle, ORDERTYPE_TO_SIGNALE[order.Type], float64(order.Type))
+				cerbero.signals.AppendFloat(aggregated.AggregatedCandle, ORDERTYPE_TO_SIGNALE[order.Type], order.AvgFilledPrice)
 			}
 
 			if aggregated.IsAggregated {
