@@ -12,7 +12,7 @@ func TestAddGetSignals(t *testing.T) {
 
 	now := time.Now()
 
-	for i := 0; i < 100; i++ {
+	for i := 1; i < 100; i++ {
 		now = now.Add(1 * time.Second)
 		candle := Candle{Time: now}
 		values := make([]float64, i)
@@ -26,7 +26,7 @@ func TestAddGetSignals(t *testing.T) {
 	}
 
 	// Candles, trades, cash are always added to the signals
-	wantedKeys := []string{SIGNAL_CASH, SIGNAL_TRADES_BUY, SIGNAL_TRADES_SELL, SIGNAL_CANDLES, "volume", "keya", "keyb"}
+	wantedKeys := []string{"keya", "keyb"}
 	gotKeys := signals.Keys()
 
 	sort.Strings(wantedKeys)
