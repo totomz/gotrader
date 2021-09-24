@@ -26,6 +26,10 @@ func (candle Candle) TimeStr() string {
 	return fmt.Sprintf(" %-5s %v", candle.Symbol, candle.Time.Format("15:04:05"))
 }
 
+func (candle Candle) String() string {
+	return fmt.Sprintf("[%-5s %v] open:%v high:%v close:%v low:%v volume:%v", candle.Symbol, candle.Time.Format("15:04:05"), candle.Open, candle.High, candle.Close, candle.Low, candle.Volume)
+}
+
 // DataFeed provides a stream of Candle.
 type DataFeed interface {
 
@@ -50,7 +54,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 	f, err := os.Open(file)
 	if err != nil {
 
-		// When running tests from the IDE, the workingdir is in the folder of the test file.
+		// When running tests from the IDE, the working dir is in the folder of the test file.
 		// This porkaround allow us to easily run tests
 		file = filepath.Join("..", d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), d.Symbol))
 		log.Printf("opening file - retrying %s", file)

@@ -45,7 +45,8 @@ type Order struct {
 	Type   OrderType
 	Status OrderStatus
 	// SizeFilled is always > 0
-	SizeFilled int64
+	SizeFilled     int64
+	AvgFilledPrice float64
 }
 
 func (o Order) String() string {
@@ -83,7 +84,7 @@ func RandUid() string {
 type Broker interface {
 	SubmitOrder(order Order) (string, error)
 	GetOrderByID(OrderID string) (Order, error)
-	ProcessOrders(candle Candle)
+	ProcessOrders(candle Candle) []Order
 	GetPosition(symbol Symbol) (Position, bool)
 	Shutdown()
 	AvailableCash() float64
@@ -139,9 +140,10 @@ func (b *BacktestBrocker) GetOrderByID(orderID string) (Order, error) {
 	return *order.(*Order), nil
 }
 
-func (b *BacktestBrocker) ProcessOrders(candle Candle) {
+func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 
 	//log.Printf(fmt.Sprintf("[%v] processing orders ", candle.TimeStr()))
+	var orderPlaced []Order
 
 	b.orderMap.Range(func(key interface{}, value interface{}) bool {
 
@@ -154,7 +156,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) {
 			return true
 		}
 
-		log.Printf("[%s]    --> %s ", candle.TimeStr(), order.String())
+		//log.Printf("[%s]    --> %s ", candle.TimeStr(), order.String())
 		order.Status = OrderStatusPartiallyFilled
 
 		var orderQty int64
@@ -211,15 +213,18 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) {
 
 		// Update the order status
 		order.SizeFilled += int64(math.Abs(float64(orderQty)))
-
+		order.AvgFilledPrice = candle.Open // <-- this is a bug. Need to calculate a weighted average
 		if order.SizeFilled == order.Size {
 			order.Status = OrderStatusFullFilled
 		}
 
 		log.Printf("[%s]    --> %s: filled %v@%v ", candle.TimeStr(), order.String(), orderQty, candle.Open)
+		orderPlaced = append(orderPlaced, *order)
 
 		return true
 	})
+
+	return orderPlaced
 }
 
 func (b *BacktestBrocker) AvailableCash() float64 {

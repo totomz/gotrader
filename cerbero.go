@@ -11,6 +11,18 @@ type AggregatedCandle struct {
 	IsAggregated     bool
 }
 
+const (
+	SIGNAL_CASH        = "cash"
+	SIGNAL_TRADES_BUY  = "trades_buy"
+	SIGNAL_TRADES_SELL = "trades_sell"
+	SIGNAL_CANDLES     = "candles"
+)
+
+var ORDERTYPE_TO_SIGNALE = map[OrderType]string{
+	OrderBuy:  SIGNAL_TRADES_BUY,
+	OrderSell: SIGNAL_TRADES_SELL,
+}
+
 // TimeAggregation aggregate the candles from a channel and write the output in a separate channel
 type TimeAggregation func(<-chan Candle) <-chan AggregatedCandle
 
@@ -95,10 +107,15 @@ type Cerbero struct {
 	Strategy            Strategy
 	DataFeed            DataFeed
 	TimeAggregationFunc TimeAggregation
+
+	signals Signal
 }
 
 func (cerbero *Cerbero) Run() error {
 	var wg sync.WaitGroup
+
+	// reset the signals
+	cerbero.signals = Signal{values: map[string]interface{}{}}
 
 	// cerbero consumes from the basefeed and need to fan-out the candles to multiple channels:
 	// --> the time aggregator
@@ -124,7 +141,7 @@ func (cerbero *Cerbero) Run() error {
 		}
 	}()
 
-	cerbero.Strategy.Initialize(cerbero.Broker)
+	cerbero.Strategy.Initialize(cerbero)
 
 	wg.Add(1)
 	go func() {
@@ -137,9 +154,19 @@ func (cerbero *Cerbero) Run() error {
 			// notify the broker that it must process all the orders in the queue
 			// run it synchronously with the datafeed for backtest.
 			// Realtime broker may use this as a "pre-strategy" entry point
-			cerbero.Broker.ProcessOrders(aggregated.Original)
+			ordersExecuted := cerbero.Broker.ProcessOrders(aggregated.Original)
+			for _, order := range ordersExecuted {
+				cerbero.signals.AppendFloat(aggregated.AggregatedCandle, ORDERTYPE_TO_SIGNALE[order.Type], order.AvgFilledPrice)
+			}
 
 			if aggregated.IsAggregated {
+
+				// Once orders are processed, we should update the available cash
+				// and the broker state
+				v := cerbero.Broker.AvailableCash()
+				cerbero.signals.AppendFloat(aggregated.AggregatedCandle, SIGNAL_CASH, v)
+				cerbero.signals.AppendCandle(aggregated.AggregatedCandle, SIGNAL_CANDLES, aggregated.AggregatedCandle)
+
 				candles = append(candles, aggregated.AggregatedCandle)
 				cerbero.Strategy.Eval(candles)
 			}
@@ -151,4 +178,40 @@ func (cerbero *Cerbero) Run() error {
 
 	log.Println("trading done! Besst, Totomz")
 	return nil
+}
+
+func (cerbero *Cerbero) Signals() *Signal {
+	return &cerbero.signals
+}
+
+func Open(candles []Candle) []float64 {
+	res := make([]float64, len(candles))
+	for i, c := range candles {
+		res[i] = c.Open
+	}
+	return res
+}
+
+func Close(candles []Candle) []float64 {
+	res := make([]float64, len(candles))
+	for i, c := range candles {
+		res[i] = c.Close
+	}
+	return res
+}
+
+func High(candles []Candle) []float64 {
+	res := make([]float64, len(candles))
+	for i, c := range candles {
+		res[i] = c.High
+	}
+	return res
+}
+
+func Low(candles []Candle) []float64 {
+	res := make([]float64, len(candles))
+	for i, c := range candles {
+		res[i] = c.Low
+	}
+	return res
 }

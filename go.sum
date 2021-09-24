@@ -3,6 +3,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/alpacahq/alpaca-trade-api-go v1.8.2 h1:3nqp+firH+BYqe9bHKaHV1JStAy4dUY3cgR1kigVINc=
 github.com/alpacahq/alpaca-trade-api-go v1.8.2/go.mod h1:uxzSLpUDKf592/0RU2DX2sGJN3o4t+h4b74ln4gQ4+w=
 github.com/cheekybits/is v0.0.0-20150225183255-68e9c0620927/go.mod h1:h/aW8ynjgkuj+NQRlZcDbAbM1ORAbXjXX77sX7T289U=
+github.com/cinar/indicator v1.1.0 h1:EnZPfNgBk+Gbby9t7/w6iJq3Z8qe+0vwSVyLM5xS26Y=
+github.com/cinar/indicator v1.1.0/go.mod h1:n8PeYsCua6/wZr2piZ2Hy6v81923hpv9WNJMI6CTodg=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

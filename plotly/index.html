@@ -1,0 +1,164 @@
+<html lang="en">
+<head>
+    <title>bomber</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4=" crossorigin="anonymous"></script>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-KyZXEAg3QhqLMpG8r+8fhAXLRk2vvoC2f3B09zVXn8CA5QIVfZOJ3BCsw2P0p/We" crossorigin="anonymous">
+    <style>
+        html, body {
+            height: 100%;
+        }
+    </style>
+
+    <link rel="stylesheet" type="text/css" href="https://code.highcharts.com/css/stocktools/gui.css">
+    <link rel="stylesheet" type="text/css" href="https://code.highcharts.com/css/annotations/popup.css">
+    <script src="https://code.highcharts.com/stock/highstock.js"></script>
+    <script src="https://code.highcharts.com/stock/modules/data.js"></script>
+    <script src="https://code.highcharts.com/stock/indicators/indicators-all.js"></script>
+    <script src="https://code.highcharts.com/stock/modules/drag-panes.js"></script>
+    <script src="https://code.highcharts.com/modules/annotations-advanced.js"></script>
+    <script src="https://code.highcharts.com/modules/price-indicator.js"></script>
+    <script src="https://code.highcharts.com/modules/full-screen.js"></script>
+    <script src="https://code.highcharts.com/modules/stock-tools.js"></script>
+    <script src="https://code.highcharts.com/stock/modules/heikinashi.js"></script>
+    <script src="https://code.highcharts.com/stock/modules/hollowcandlestick.js"></script>
+    <script src="https://code.highcharts.com/highcharts-more.js"></script>
+    <script src="https://code.highcharts.com/modules/bullet.js"></script>
+    <script src="https://code.highcharts.com/modules/item-series.js"></script>
+    <script src="/gotrader/plotly/iplot.js"></script>
+</head>
+
+<body>
+<div class="container">
+    <div class="w-100 row">
+        <div class="col tools-container">
+            <!-- https://api.highcharts.com/highstock/navigation.bindings.arrowInfinityLine -->
+            <button id="zoomReset">Zoom Reset</button>
+            <button class="highcharts-zoom-x">Zoom X</button>
+            <button class="highcharts-arrow-infinity-line">ine</button>
+        </div>
+    </div>
+    <div class="row w-100" id="mainPanel">
+        <div class="col-12 w-100">
+            <div id="mainchart"></div>
+        </div>
+    </div>
+    <div class="row w-100">
+        <div class="col-12 w-100">
+            <div id="mainchart-legend">
+                <p>X: <span id="main_x"></span></p><br>
+                <p>Y: <span id="main_y"></span></p><br>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+
+<script>
+    const DATASET_URL = "/gotrader/plotly/datatest.json";
+    var dbug = {}, dataset = {}
+
+    $(document).ready(async () => {
+
+        $('#zoomReset').click(() => {
+            const charts = Highcharts.charts;
+            charts.forEach(function (chart, index) {
+                if (chart.renderTo.id !== 'mainchart') {
+                    return true
+                }
+                chart.xAxis[0].setExtremes(null, null, true)
+            });
+        })
+
+        dataset = await $.get(DATASET_URL);
+        console.log("dataset", dataset)
+
+        /* Add here the additional time series */
+        const seriesNewPanels = [
+            {
+                name: 'cash1',
+                data: formatXY(dataset.cash),
+            },
+            {
+                name: 'cash2',
+                data: formatXY(dataset.cash),
+                range: {
+                    max: 35000,
+                    min: dataset.cash.y
+                },
+                options: {
+                    yAxis: {
+                        min: 25000,
+                    }
+                }
+            },
+            {
+                name: 'cash3',
+                data: formatXY(dataset.cash),
+                range: {
+                    max: 40000,
+                    min: 20000,
+                },
+                options: {
+                    yAxis: {
+                        max: 31000,
+                        plotLines: [
+                            {
+                                value: 30000,
+                                color: 'red',
+                                dashStyle: 'shortdash',
+                                width: 2,
+                            },
+                        ]
+                    }
+                }
+            },
+        ].reverse();
+
+        const seriesOnCandles = [
+            {
+                name: 'psar',
+                data: formatXY(dataset.psar),
+                type: 'scatter',
+                color: '#B5B5B5',
+                enableMouseTracking: false,
+                marker: {
+                    radius: 2
+                }
+            },
+            {
+                name: 'trades_buy',
+                data: formatXY(dataset.trades_buy),
+                enableMouseTracking: false,
+                marker: {
+                    enabled: true,
+                    radius: 6,
+                    symbol: 'triangle',
+                    fillColor: 'green',
+                },
+            },
+            {
+                name: 'trades_sell',
+                data: formatXY(dataset.trades_sell),
+                enableMouseTracking: false,
+                marker: {
+                    enabled: true,
+                    radius: 6,
+                    symbol: 'triangle-down',
+                    fillColor: 'red',
+                },
+            },
+
+        ];
+
+        InitCandleChart(dataset, seriesOnCandles);
+        seriesNewPanels.forEach(s => { AddPanel(s); });
+
+        $('.highcharts-zoom-x').click();
+
+    });
+</script>
+
+</html>
