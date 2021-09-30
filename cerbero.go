@@ -3,12 +3,17 @@ package gotrader
 import (
 	"log"
 	"sync"
+	"time"
 )
 
 type AggregatedCandle struct {
 	Original         Candle
 	AggregatedCandle Candle
 	IsAggregated     bool
+}
+
+type ExecutionResult struct {
+	TotalTime time.Duration `json:"total_time"`
 }
 
 const (
@@ -72,7 +77,7 @@ func AggregateBySeconds(sec int) TimeAggregation {
 
 // mergeCandles suppose that a is before b.
 func mergeCandles(a Candle, b Candle) Candle {
-	merged := Candle{}
+	merged := Candle{Symbol: b.Symbol}
 
 	merged.Open = a.Open
 	if a.Open == 0 {
@@ -94,7 +99,6 @@ func mergeCandles(a Candle, b Candle) Candle {
 	}
 
 	merged.Time = b.Time
-
 	merged.Volume = a.Volume + b.Volume
 
 	return merged
@@ -111,11 +115,16 @@ type Cerbero struct {
 	signals Signal
 }
 
-func (cerbero *Cerbero) Run() error {
+func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	var wg sync.WaitGroup
+	stats := ExecutionResult{}
+	start := time.Now()
 
-	// reset the signals
+	// Set default values
 	cerbero.signals = Signal{values: map[string]interface{}{}}
+	if cerbero.TimeAggregationFunc == nil {
+		cerbero.TimeAggregationFunc = NoAggregation
+	}
 
 	// cerbero consumes from the basefeed and need to fan-out the candles to multiple channels:
 	// --> the time aggregator
@@ -176,8 +185,9 @@ func (cerbero *Cerbero) Run() error {
 	wg.Wait()
 	cerbero.Broker.Shutdown()
 
+	stats.TotalTime = time.Now().Sub(start)
 	log.Println("trading done! Besst, Totomz")
-	return nil
+	return stats, nil
 }
 
 func (cerbero *Cerbero) Signals() *Signal {

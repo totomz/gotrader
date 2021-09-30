@@ -141,7 +141,7 @@ func TestStrategyReadsCandles(t *testing.T) {
 		},
 	}
 
-	err := service.Run()
+	_, err := service.Run()
 
 	// How many lines? The csv has 1 line for each second.
 	// How many seconds in the time interval?
@@ -233,7 +233,7 @@ func TestOrderExecutionAfter1sec(t *testing.T) {
 		},
 	}
 
-	err = service.Run()
+	_, err = service.Run()
 	if err != nil {
 		t.Fatal(err)
 	}

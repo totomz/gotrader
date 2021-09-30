@@ -59,7 +59,7 @@ func TestSignalsStrategy(t *testing.T) {
 		TimeAggregationFunc: AggregateBySeconds(5),
 	}
 
-	err := service.Run()
+	_, err := service.Run()
 	if err != nil {
 		t.Errorf("failed to run strategy - %v", err)
 	}
