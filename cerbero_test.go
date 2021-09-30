@@ -76,6 +76,7 @@ func TestTimeAggregation_15Sec(t *testing.T) {
 		Low:    260,
 		Volume: 4154,
 		Time:   time.Date(2021, 1, 11, 15, 30, 15, 0, time.Local),
+		Symbol: "FB",
 	}
 
 	got := candles[0]
