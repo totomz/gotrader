@@ -186,7 +186,6 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	cerbero.Broker.Shutdown()
 
 	stats.TotalTime = time.Now().Sub(start)
-	log.Println("trading done! Besst, Totomz")
 	return stats, nil
 }
 

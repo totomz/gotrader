@@ -19,6 +19,11 @@ func (s *MockStrategy) Initialize(cerbero *Cerbero) {
 	s.signals = cerbero.signals
 	s.broker = cerbero.Broker
 }
+
+func (s *MockStrategy) Signals() *Signal {
+	return nil
+}
+
 func (s *MockStrategy) Eval(candles []Candle) {
 	c := candles[len(candles)-1]
 	psar, trend := indicator.ParabolicSar(High(candles), Low(candles), Close(candles))

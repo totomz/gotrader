@@ -108,6 +108,18 @@ func (signal *Signal) Get(key string) (interface{}, bool) {
 
 func (signal *Signal) ToJson() ([]byte, error) {
 
+	// Append the default signals
+	requiredSignals := []string{"cash", "trades_buy", "trades_sell", "candles"}
+	for _, k := range requiredSignals {
+		_, has := signal.values[k]
+		if !has {
+			signal.values[k] = TimeSerieFloat{
+				X: []int64{},
+				Y: []float64{},
+			}
+		}
+	}
+
 	data, err := json.Marshal(signal.values)
 	if err != nil {
 		return []byte{}, err
@@ -127,4 +139,14 @@ func (signal *Signal) ToJson() ([]byte, error) {
 	*/
 
 	return data, nil
+}
+
+func (signal *Signal) Merge(toMerge *Signal) {
+	if toMerge == nil {
+		return
+	}
+
+	for k, v := range toMerge.values {
+		signal.values[k] = v
+	}
 }

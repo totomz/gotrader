@@ -102,6 +102,10 @@ func (s *testMockStrategy) Initialize(broker *Cerbero) {
 	}
 }
 
+func (s *testMockStrategy) Signals() *Signal {
+	return nil
+}
+
 func TestStrategyReadsCandles(t *testing.T) {
 	t.Parallel()
 

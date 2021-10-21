@@ -9,6 +9,7 @@ type Strategy interface {
 	// Eval evaluate the strategy. candles[0] is the latest, candles[1] is the latest - 1, and so on
 	Eval(candles []Candle)
 	Initialize(broker *Cerbero)
+	Signals() *Signal
 }
 
 // <editor-fold desc="Test Strategy" >
@@ -35,6 +36,10 @@ func (s *SimplePsarStrategy) Eval(candles []Candle) {
 func (s *SimplePsarStrategy) Initialize(cerbero *Cerbero) {
 	// Strategy initialization
 	s.signals = cerbero.signals
+}
+
+func (s *SimplePsarStrategy) Signals() *Signal {
+	return &s.signals
 }
 
 // </editor-fold desc="Test Strategy" >
