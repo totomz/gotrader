@@ -2,6 +2,7 @@ package gotrader
 
 import (
 	"github.com/google/go-cmp/cmp"
+	"sync"
 	"testing"
 	"time"
 )
@@ -136,14 +137,20 @@ func TestStrategyReadsCandles(t *testing.T) {
 	}
 
 	service := Cerbero{
-		Strategy:            &strategy,
-		Broker:              NewBacktestBrocker(30000),
-		TimeAggregationFunc: NoAggregation,
 		DataFeed: &IBZippedCSV{
 			DataFolder: testFolder,
 			Symbol:     testSymbol,
 			Sday:       testSday,
 		},
+		Broker: &BacktestBrocker{
+			InitialCashUSD:      30000,
+			BrokerAvailableCash: 30000,
+			OrderMap:            sync.Map{},
+			Portfolio:           map[Symbol]Position{},
+			EvalCommissions:     Nocommissions,
+		},
+		Strategy:            &strategy,
+		TimeAggregationFunc: NoAggregation,
 	}
 
 	_, err := service.Run()
@@ -202,8 +209,8 @@ func TestOrderExecutionAfter1sec(t *testing.T) {
 					t.Errorf("Expected testorder size filled to be 1, was %v", order.SizeFilled)
 				}
 
-				position, found := _broker.GetPosition(order.Symbol)
-				if !found {
+				position := _broker.GetPosition(order.Symbol)
+				if position.Size == 0 {
 					t.Errorf("open position not found!")
 				}
 
@@ -228,14 +235,20 @@ func TestOrderExecutionAfter1sec(t *testing.T) {
 		},
 	}
 	service := Cerbero{
-		Strategy:            &buySell,
-		Broker:              NewBacktestBrocker(1000),
-		TimeAggregationFunc: AggregateBySeconds(15),
 		DataFeed: &IBZippedCSV{
 			DataFolder: testFolder,
 			Symbol:     testSymbol,
 			Sday:       testSday,
 		},
+		Broker: &BacktestBrocker{
+			InitialCashUSD:      1000,
+			BrokerAvailableCash: 1000,
+			OrderMap:            sync.Map{},
+			Portfolio:           map[Symbol]Position{},
+			EvalCommissions:     Nocommissions,
+		},
+		Strategy:            &buySell,
+		TimeAggregationFunc: AggregateBySeconds(15),
 	}
 
 	_, err = service.Run()

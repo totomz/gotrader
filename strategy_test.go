@@ -5,6 +5,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"os"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 )
@@ -54,7 +55,13 @@ func TestSignalsStrategy(t *testing.T) {
 	sday := time.Date(2021, 1, 11, 0, 0, 0, 0, time.Local)
 
 	service := Cerbero{
-		Broker:   NewBacktestBrocker(30000),
+		Broker: &BacktestBrocker{
+			InitialCashUSD:      30000,
+			BrokerAvailableCash: 30000,
+			OrderMap:            sync.Map{},
+			Portfolio:           map[Symbol]Position{},
+			EvalCommissions:     Nocommissions,
+		},
 		Strategy: &MockStrategy{},
 		DataFeed: &IBZippedCSV{
 			DataFolder: testFolder,

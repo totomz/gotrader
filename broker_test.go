@@ -3,6 +3,7 @@ package gotrader
 import (
 	"errors"
 	"math"
+	"sync"
 	"testing"
 	"time"
 )
@@ -10,7 +11,13 @@ import (
 func TestBacktestBrocker_TestOrders(t *testing.T) {
 	t.Parallel()
 
-	broker := NewBacktestBrocker(100000)
+	broker := BacktestBrocker{
+		InitialCashUSD:      30000,
+		BrokerAvailableCash: 30000,
+		OrderMap:            sync.Map{},
+		Portfolio:           map[Symbol]Position{},
+		EvalCommissions:     Nocommissions,
+	}
 
 	_, err := broker.GetOrderByID("order that does not exists")
 	if !errors.Is(err, ErrOrderNotFound) {
@@ -97,7 +104,7 @@ func TestBacktestBrocker_TestOrders(t *testing.T) {
 		t.Fatal("Order not fulfilled?")
 	}
 
-	position, _ := broker.GetPosition("AMZN")
+	position := broker.GetPosition("AMZN")
 	if !almostEqual(position.AvgPrice, 141.52) {
 		t.Fatalf("expected avg price was 141.52, got %v", position.AvgPrice)
 	}

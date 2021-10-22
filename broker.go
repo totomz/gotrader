@@ -35,6 +35,7 @@ const (
 type Position struct {
 	Size     int64
 	AvgPrice float64
+	Symbol   Symbol
 }
 
 type Order struct {
@@ -85,33 +86,23 @@ type Broker interface {
 	SubmitOrder(order Order) (string, error)
 	GetOrderByID(OrderID string) (Order, error)
 	ProcessOrders(candle Candle) []Order
-	GetPosition(symbol Symbol) (Position, bool)
+	GetPosition(symbol Symbol) Position
 	Shutdown()
 	AvailableCash() float64
+	ClosePosition(position Position)
 }
 
 type EvaluateCommissions func(order Order, price float64) float64
 
+var Nocommissions = func(order Order, price float64) float64 { return 0 }
+
 // BacktestBrocker is the default broker to back-test a strategy
 type BacktestBrocker struct {
-	InitialCashUSD float64
-
-	availableCash   float64
-	orderMap        sync.Map
-	portfolio       map[Symbol]Position
-	evalCommissions EvaluateCommissions
-}
-
-func NewBacktestBrocker(initialCash float64) *BacktestBrocker {
-	broker := BacktestBrocker{
-		InitialCashUSD:  initialCash,
-		availableCash:   initialCash,
-		orderMap:        sync.Map{},
-		portfolio:       map[Symbol]Position{},
-		evalCommissions: func(order Order, price float64) float64 { return 0 },
-	}
-
-	return &broker
+	InitialCashUSD      float64
+	BrokerAvailableCash float64
+	OrderMap            sync.Map
+	Portfolio           map[Symbol]Position
+	EvalCommissions     EvaluateCommissions
 }
 
 func (b *BacktestBrocker) SubmitOrder(order Order) (string, error) {
@@ -123,7 +114,7 @@ func (b *BacktestBrocker) SubmitOrder(order Order) (string, error) {
 	order.Id = RandUid()
 	order.Status = OrderStatusAccepted
 
-	b.orderMap.Store(order.Id, &order)
+	b.OrderMap.Store(order.Id, &order)
 
 	return order.Id, nil
 }
@@ -133,7 +124,7 @@ func (b *BacktestBrocker) Shutdown() {
 }
 
 func (b *BacktestBrocker) GetOrderByID(orderID string) (Order, error) {
-	order, found := b.orderMap.Load(orderID)
+	order, found := b.OrderMap.Load(orderID)
 	if !found {
 		return Order{}, ErrOrderNotFound
 	}
@@ -145,7 +136,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 	//log.Printf(fmt.Sprintf("[%v] processing orders ", candle.TimeStr()))
 	var orderPlaced []Order
 
-	b.orderMap.Range(func(key interface{}, value interface{}) bool {
+	b.OrderMap.Range(func(key interface{}, value interface{}) bool {
 
 		order := value.(*Order)
 
@@ -176,9 +167,9 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			}
 
 			// Do we have enough money to execute the order?
-			requiredCash := float64(orderQty)*candle.Open + b.evalCommissions(*order, candle.Open)
-			if b.availableCash < requiredCash {
-				log.Printf("[%s]    --> %s - order failed - no cash, need $%v have $%v", candle.TimeStr(), order.String(), requiredCash, b.availableCash)
+			requiredCash := float64(orderQty)*candle.Open + b.EvalCommissions(*order, candle.Open)
+			if b.BrokerAvailableCash < requiredCash {
+				log.Printf("[%s]    --> %s - order failed - no cash, need $%v have $%v", candle.TimeStr(), order.String(), requiredCash, b.BrokerAvailableCash)
 				return true
 			}
 
@@ -192,8 +183,9 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 
 		// Execute the order!
 		cashChange := float64(orderQty) * candle.Open // SELL? orderQty is <0!
-		oldPosition, haveInPortfolio := b.portfolio[order.Symbol]
+		oldPosition, haveInPortfolio := b.Portfolio[order.Symbol]
 		newPosition := Position{
+			Symbol:   order.Symbol,
 			Size:     orderQty,
 			AvgPrice: candle.Open,
 		}
@@ -201,15 +193,15 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 		// Update the available cahs: use money to buy, add money if we are selling
 		if orderQty > 0 || // BUY  -> use my cash
 			haveInPortfolio && orderQty < 0 { // CLOSE
-			b.availableCash -= cashChange // cashChange is <0 is I'm selling
+			b.BrokerAvailableCash -= cashChange // cashChange is <0 is I'm selling
 		}
 
-		// Update the portfolio
+		// Update the Portfolio
 		if haveInPortfolio {
 			newPosition.Size += oldPosition.Size
 			newPosition.AvgPrice = (float64(oldPosition.Size)*oldPosition.AvgPrice + float64(orderQty)*candle.Open) / float64(oldPosition.Size+orderQty)
 		}
-		b.portfolio[order.Symbol] = newPosition
+		b.Portfolio[order.Symbol] = newPosition
 
 		// Update the order status
 		order.SizeFilled += int64(math.Abs(float64(orderQty)))
@@ -228,10 +220,27 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 }
 
 func (b *BacktestBrocker) AvailableCash() float64 {
-	return b.availableCash
+	return b.BrokerAvailableCash
 }
 
-func (b *BacktestBrocker) GetPosition(symbol Symbol) (Position, bool) {
-	position, found := b.portfolio[symbol]
-	return position, found
+func (b *BacktestBrocker) GetPosition(symbol Symbol) Position {
+	position := b.Portfolio[symbol]
+	return position
+}
+
+func (b *BacktestBrocker) ClosePosition(position Position) {
+	var orderType OrderType
+
+	if position.Size > 0 {
+		orderType = OrderSell
+	}
+	if position.Size < 0 {
+		orderType = OrderBuy
+	}
+
+	b.SubmitOrder(Order{
+		Symbol: position.Symbol,
+		Size:   int64(math.Abs(float64(position.Size))),
+		Type:   orderType,
+	})
 }
