@@ -90,6 +90,7 @@ type Broker interface {
 	Shutdown()
 	AvailableCash() float64
 	ClosePosition(position Position)
+	GetPositions() []Position
 }
 
 type EvaluateCommissions func(order Order, price float64) float64
@@ -226,6 +227,14 @@ func (b *BacktestBrocker) AvailableCash() float64 {
 func (b *BacktestBrocker) GetPosition(symbol Symbol) Position {
 	position := b.Portfolio[symbol]
 	return position
+}
+
+func (b *BacktestBrocker) GetPositions() []Position {
+	var openPositions []Position
+	for _, v := range b.Portfolio {
+		openPositions = append(openPositions, v)
+	}
+	return openPositions
 }
 
 func (b *BacktestBrocker) ClosePosition(position Position) {

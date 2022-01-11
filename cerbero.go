@@ -13,7 +13,10 @@ type AggregatedCandle struct {
 }
 
 type ExecutionResult struct {
-	TotalTime time.Duration `json:"total_time"`
+	TotalTime   time.Duration `json:"total_time"`
+	InitialCash float64       `json:"initial_cash"`
+	PL          float64       `json:"pl"`
+	FinalCash   float64       `json:"final_cash"`
 }
 
 const (
@@ -168,17 +171,20 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 				cerbero.signals.AppendFloat(aggregated.AggregatedCandle, ORDERTYPE_TO_SIGNALE[order.Type], order.AvgFilledPrice)
 			}
 
-			if aggregated.IsAggregated {
-
-				// Once orders are processed, we should update the available cash
-				// and the broker state
-				v := cerbero.Broker.AvailableCash()
-				cerbero.signals.AppendFloat(aggregated.AggregatedCandle, SIGNAL_CASH, v)
-				cerbero.signals.AppendCandle(aggregated.AggregatedCandle, SIGNAL_CANDLES, aggregated.AggregatedCandle)
-
-				candles = append(candles, aggregated.AggregatedCandle)
-				cerbero.Strategy.Eval(candles)
+			// Only orders are processed with the raw candles
+			if !aggregated.IsAggregated {
+				continue
 			}
+
+			// Once orders are processed, we should update the available cash,
+			// the broker state and all the fisgnals
+			v := cerbero.Broker.AvailableCash()
+			cerbero.signals.AppendFloat(aggregated.AggregatedCandle, SIGNAL_CASH, v)
+			cerbero.signals.AppendCandle(aggregated.AggregatedCandle, SIGNAL_CANDLES, aggregated.AggregatedCandle)
+
+			candles = append(candles, aggregated.AggregatedCandle)
+			cerbero.Strategy.Eval(candles)
+
 		}
 	}()
 
@@ -186,6 +192,8 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	cerbero.Broker.Shutdown()
 
 	stats.TotalTime = time.Now().Sub(start)
+	stats.FinalCash = cerbero.Broker.AvailableCash()
+
 	return stats, nil
 }
 
