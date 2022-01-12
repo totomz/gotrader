@@ -83,7 +83,7 @@ function InitCandleChart(dataset, additionalSeries) {
 
 function AddPanel(serie) {
     const divId = `panel_${uniqId()}`
-    $("#mainchart").prepend(` <div class="row w-100">
+    $("#mainchart").prepend(` <div class="row w-100" id="chart_${serie.name}">
             <div class="col w-100">
                 <div id="${divId}"></div>
             </div>
