@@ -2,6 +2,7 @@ package gotrader
 
 import (
 	"encoding/json"
+	"log"
 )
 
 // Signal is a convenient way to collect custom time-series
@@ -34,7 +35,7 @@ func (signal *Signal) AppendCandle(candle Candle, key string, value Candle) {
 	_, found := signal.values[key]
 	if !found {
 		signal.values[key] = TimeSerieCandle{
-			//X:      []string{candle.Time.Format("2006-01-02 15:04:05")},
+			// X:      []string{candle.Time.Format("2006-01-02 15:04:05")},
 			X:      []int64{candle.Time.Unix() * 1000},
 			Open:   []float64{value.Open},
 			High:   []float64{value.High},
@@ -46,7 +47,7 @@ func (signal *Signal) AppendCandle(candle Candle, key string, value Candle) {
 	}
 
 	cval := signal.values[key].(TimeSerieCandle)
-	//cval.X = append(cval.X, candle.Time.Format("2006-01-02 15:04:05"))
+	// cval.X = append(cval.X, candle.Time.Format("2006-01-02 15:04:05"))
 	cval.X = append(cval.X, candle.Time.Unix()*1000)
 	cval.Open = append(cval.Open, value.Open)
 	cval.High = append(cval.High, value.High)
@@ -82,16 +83,6 @@ func (signal *Signal) AppendFloat(candle Candle, key string, value float64) {
 	signal.values[key] = cval
 }
 
-//// AppendLast the last element of value as the last element to the 'key' time-series. See AppendValue
-//func (signal *Signal) AppendLast(candle Candle, key string, value []float64) {
-//
-//	if len(value) == 0 {
-//		return
-//	}
-//	signal.AppendValue(candle, key, value[len(value) - 1])
-//
-//}
-
 func (signal *Signal) Keys() []string {
 	var keys []string
 	for k, _ := range signal.values {
@@ -122,6 +113,7 @@ func (signal *Signal) ToJson() ([]byte, error) {
 
 	data, err := json.Marshal(signal.values)
 	if err != nil {
+		log.Printf("[ERROR] error exporting signals: %v ", err)
 		return []byte{}, err
 	}
 	/*

@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/rand"
 	"sync"
+	"time"
 )
 
 type Symbol string
@@ -33,6 +34,7 @@ const (
 )
 
 type Position struct {
+	// Size is negative if the position is a SHORT
 	Size     int64
 	AvgPrice float64
 	Symbol   Symbol
@@ -48,6 +50,9 @@ type Order struct {
 	// SizeFilled is always > 0
 	SizeFilled     int64
 	AvgFilledPrice float64
+
+	// SubmittedTime When the order has been submitted (candle time)
+	SubmittedTime time.Time
 }
 
 func (o Order) String() string {
@@ -70,12 +75,12 @@ func RandUid() string {
 	n := 6
 	a := make([]byte, n)
 	b := make([]byte, n)
-	//c := make([]byte, n)
+	// c := make([]byte, n)
 
 	for i := range b {
 		a[i] = letterBytes[rand.Intn(len(letterBytes))]
 		b[i] = letterBytes[rand.Intn(len(letterBytes))]
-		//c[i] = letterBytes[rand.Intn(len(letterBytes))]
+		// c[i] = letterBytes[rand.Intn(len(letterBytes))]
 	}
 
 	return string(a) + "-" + string(b) // + "-" + string(c)
@@ -134,21 +139,25 @@ func (b *BacktestBrocker) GetOrderByID(orderID string) (Order, error) {
 
 func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 
-	//log.Printf(fmt.Sprintf("[%v] processing orders ", candle.TimeStr()))
+	// log.Printf(fmt.Sprintf("[%v] processing orders ", candle.TimeStr()))
 	var orderPlaced []Order
 
 	b.OrderMap.Range(func(key interface{}, value interface{}) bool {
 
 		order := value.(*Order)
 
+		if order.SubmittedTime.IsZero() {
+			order.SubmittedTime = candle.Time
+		}
+
 		if order.Status == OrderStatusFullFilled ||
 			order.Status == OrderStatusRejected ||
 			order.Symbol != candle.Symbol {
-			//log.Printf(".    --> %s SKIPPED", order.String())
+			// log.Printf(".    --> %s SKIPPED", order.String())
 			return true
 		}
 
-		//log.Printf("[%s]    --> %s ", candle.TimeStr(), order.String())
+		// log.Printf("[%s]    --> %s ", candle.TimeStr(), order.String())
 		order.Status = OrderStatusPartiallyFilled
 
 		var orderQty int64
@@ -200,9 +209,16 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 		// Update the Portfolio
 		if haveInPortfolio {
 			newPosition.Size += oldPosition.Size
+			// warn: if I'm closing a position, newPosition.Size == +Inf
+			// we don't care because the position is not added to the portfolio, but keep it in mind
 			newPosition.AvgPrice = (float64(oldPosition.Size)*oldPosition.AvgPrice + float64(orderQty)*candle.Open) / float64(oldPosition.Size+orderQty)
 		}
-		b.Portfolio[order.Symbol] = newPosition
+
+		if newPosition.Size == 0 {
+			delete(b.Portfolio, order.Symbol)
+		} else {
+			b.Portfolio[order.Symbol] = newPosition
+		}
 
 		// Update the order status
 		order.SizeFilled += int64(math.Abs(float64(orderQty)))
