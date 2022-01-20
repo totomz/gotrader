@@ -12,6 +12,8 @@ import (
 type DataFeed struct {
 	IbClient  *IbClientConnector
 	Contracts []ibapi.Contract
+	Stdout    *log.Logger
+	Stderr    *log.Logger
 }
 
 func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
@@ -19,12 +21,12 @@ func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
 	feedCandles := make(chan gotrader.Candle, len(feed.Contracts))
 
 	for _, contract := range feed.Contracts {
-		log.Println(fmt.Sprintf("Starting feed %v", contract))
+		feed.Stdout.Println(fmt.Sprintf("Starting feed %v", contract))
 		dataChannel, errorChannel := feed.IbClient.SubscribeMarketData5sBar(&contract)
 
 		go func() {
 			for bar := range dataChannel {
-				log.Println(bar)
+				feed.Stdout.Println(bar)
 
 				println(bar.Time)
 				fmt.Printf("%v", time.Now())
@@ -45,14 +47,14 @@ func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
 				case feedCandles <- candle:
 					// message sent
 				default:
-					log.Printf("bar dropped %v", bar)
+					feed.Stdout.Printf("bar dropped %v", bar)
 				}
 			}
 		}()
 
 		go func() {
 			for err := range errorChannel {
-				log.Printf("ERROR - %v", err)
+				feed.Stderr.Printf("ERROR - %v", err)
 			}
 		}()
 
@@ -60,7 +62,7 @@ func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
 	return nil, errors.New("NOT IMPLEMENTED")
 }
 
-//func aazio() {
+// func aazio() {
 //
 //
 //	// implement your own IbWrapper to handle the msg delivered via tws or gateway
@@ -111,4 +113,4 @@ func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
 //
 //    <-time.After(time.Second * 60)
 //
-//}
+// }

@@ -22,7 +22,7 @@ type Candle struct {
 }
 
 func (candle Candle) TimeStr() string {
-	//return fmt.Sprintf("%v [%s]", candle.Time.Format("2006-01-02 15:04:05"), candle.Symbol)
+	// return fmt.Sprintf("%v [%s]", candle.Time.Format("2006-01-02 15:04:05"), candle.Symbol)
 	return fmt.Sprintf(" %-5s %v", candle.Symbol, candle.Time.Format("15:04:05"))
 }
 
@@ -44,12 +44,21 @@ type IBZippedCSV struct {
 	DataFolder string
 	Sday       time.Time
 	Symbol     Symbol
+	Stdout     *log.Logger
+	Stderr     *log.Logger
 }
 
 func (d *IBZippedCSV) Run() (chan Candle, error) {
 
+	if d.Stdout == nil {
+		d.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
+	}
+	if d.Stderr == nil {
+		d.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
+	}
+
 	file := filepath.Join(d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), d.Symbol))
-	log.Printf("opening file %s", file)
+	d.Stdout.Printf("opening file %s", file)
 
 	f, err := os.Open(file)
 	if err != nil {
@@ -65,7 +74,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 	}
 
 	stream := make(chan Candle, 24*time.Hour/time.Second)
-	log.Println("Start feeding the candles in the channel")
+	d.Stdout.Println("Start feeding the candles in the channel")
 
 	go func() {
 		scanner := bufio.NewScanner(f)
@@ -76,13 +85,13 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 			parts := strings.Split(scanner.Text(), ",")
 			inst, err := time.ParseInLocation("20060102 15:04:05", parts[0], time.Local)
 			if err != nil {
-				log.Println("[ERROR] Can't parse the datetime! Skipping a candle")
+				d.Stderr.Println("Can't parse the datetime! Skipping a candle")
 				continue
 			}
 
 			// Skip candles that are in the past (should never happen, but happened with IB csv files)
 			if inst.Before(latestInst) || inst.Equal(latestInst) {
-				log.Printf("[WARNING] skipping candle in the past! Last: %v, new:%v", latestInst.String(), inst.String())
+				d.Stdout.Printf("skipping candle in the past! Last: %v, new:%v", latestInst.String(), inst.String())
 				continue
 			}
 			latestInst = inst
@@ -99,7 +108,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 			stream <- candle
 		}
 
-		log.Println("closing datafeed")
+		d.Stdout.Println("closing datafeed")
 		close(stream)
 
 	}()
@@ -111,7 +120,6 @@ func mustFloat(str string) float64 {
 	n, err := strconv.ParseFloat(str, 64)
 	if err != nil {
 		log.Fatalf("Cant parse the string %s to a float64 -- %v", str, err)
-		return 0
 	}
 	return n
 }
@@ -120,7 +128,6 @@ func mustInt(str string) int64 {
 	n, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
 		log.Fatalf("Cant parse the string %s to a float64 -- %v", str, err)
-		return 0
 	}
 	return n
 }

@@ -2,6 +2,7 @@ package gotrader
 
 import (
 	"log"
+	"os"
 	"sync"
 	"time"
 )
@@ -115,11 +116,21 @@ type Cerbero struct {
 	Strategy            Strategy
 	DataFeed            DataFeed
 	TimeAggregationFunc TimeAggregation
+	Stdout              *log.Logger
+	Stderr              *log.Logger
 
 	signals Signal
 }
 
 func (cerbero *Cerbero) Run() (ExecutionResult, error) {
+
+	if cerbero.Stdout == nil {
+		cerbero.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
+	}
+	if cerbero.Stderr == nil {
+		cerbero.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
+	}
+
 	var wg sync.WaitGroup
 	start := time.Now()
 	stats := ExecutionResult{
@@ -147,10 +158,10 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 		defer wg.Done()
 		basefeed, err := cerbero.DataFeed.Run()
 		if err != nil {
-			log.Fatalf("Error consuming base feed -- %v", err)
+			cerbero.Stderr.Fatalf("Error consuming base feed -- %v", err)
 			return
 		}
-		log.Println("started base feed consumer routine")
+		cerbero.Stdout.Println("started base feed consumer routine")
 		for tick := range basefeed {
 			baseFeedCloneForTimeAggregation <- tick
 		}
@@ -162,7 +173,7 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	go func() {
 		defer wg.Done()
 		var candles []Candle
-		log.Println("started strategy routine")
+		cerbero.Stdout.Println("started strategy routine")
 
 		for aggregated := range aggregatedFeed {
 

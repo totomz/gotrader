@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 )
@@ -109,6 +110,8 @@ type BacktestBrocker struct {
 	OrderMap            sync.Map
 	Portfolio           map[Symbol]Position
 	EvalCommissions     EvaluateCommissions
+	Stdout              *log.Logger
+	Stderr              *log.Logger
 }
 
 func (b *BacktestBrocker) SubmitOrder(order Order) (string, error) {
@@ -138,8 +141,14 @@ func (b *BacktestBrocker) GetOrderByID(orderID string) (Order, error) {
 }
 
 func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
+	if b.Stdout == nil {
+		b.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
+	}
+	if b.Stderr == nil {
+		b.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
+	}
 
-	// log.Printf(fmt.Sprintf("[%v] processing orders ", candle.TimeStr()))
+	// b.Stdout.Printf(fmt.Sprintf("[%v] processing orders ", candle.TimeStr()))
 	var orderPlaced []Order
 
 	b.OrderMap.Range(func(key interface{}, value interface{}) bool {
@@ -153,11 +162,11 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 		if order.Status == OrderStatusFullFilled ||
 			order.Status == OrderStatusRejected ||
 			order.Symbol != candle.Symbol {
-			// log.Printf(".    --> %s SKIPPED", order.String())
+			// b.Stdout.Printf(".    --> %s SKIPPED", order.String())
 			return true
 		}
 
-		// log.Printf("[%s]    --> %s ", candle.TimeStr(), order.String())
+		// b.Stdout.Printf("[%s]    --> %s ", candle.TimeStr(), order.String())
 		order.Status = OrderStatusPartiallyFilled
 
 		var orderQty int64
@@ -179,7 +188,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			// Do we have enough money to execute the order?
 			requiredCash := float64(orderQty)*candle.Open + b.EvalCommissions(*order, candle.Open)
 			if b.BrokerAvailableCash < requiredCash {
-				log.Fatalf("[%s]    --> %s - order failed - no cash, need $%v have $%v", candle.TimeStr(), order.String(), requiredCash, b.BrokerAvailableCash)
+				b.Stderr.Fatalf("[%s]    --> %s - order failed - no cash, need $%v have $%v", candle.TimeStr(), order.String(), requiredCash, b.BrokerAvailableCash)
 				return true
 			}
 
@@ -231,7 +240,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			order.Status = OrderStatusFullFilled
 		}
 
-		log.Printf("[%s]    --> %s: filled %v@%v ", candle.TimeStr(), order.String(), orderQty, candle.Open)
+		b.Stdout.Printf("[%s]    --> %s: filled %v@%v ", candle.TimeStr(), order.String(), orderQty, candle.Open)
 		orderPlaced = append(orderPlaced, *order)
 
 		return true
