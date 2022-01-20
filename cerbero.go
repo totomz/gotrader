@@ -13,10 +13,11 @@ type AggregatedCandle struct {
 }
 
 type ExecutionResult struct {
-	TotalTime   time.Duration `json:"total_time"`
-	InitialCash float64       `json:"initial_cash"`
-	PL          float64       `json:"pl"`
-	FinalCash   float64       `json:"final_cash"`
+	TotalTime       time.Duration `json:"total_time"`
+	TotalTimeString string        `json:"total_time_S"`
+	InitialCash     float64       `json:"initial_cash"`
+	PL              float64       `json:"pl"`
+	FinalCash       float64       `json:"final_cash"`
 }
 
 const (
@@ -120,8 +121,10 @@ type Cerbero struct {
 
 func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	var wg sync.WaitGroup
-	stats := ExecutionResult{}
 	start := time.Now()
+	stats := ExecutionResult{
+		InitialCash: cerbero.Broker.AvailableCash(),
+	}
 
 	// Set default values
 	cerbero.signals = Signal{values: map[string]interface{}{}}
@@ -192,8 +195,9 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	cerbero.Broker.Shutdown()
 
 	stats.TotalTime = time.Now().Sub(start)
+	stats.TotalTimeString = stats.TotalTime.String()
 	stats.FinalCash = cerbero.Broker.AvailableCash()
-
+	stats.PL = (stats.FinalCash/stats.InitialCash - 1) * 100
 	return stats, nil
 }
 

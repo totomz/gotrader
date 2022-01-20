@@ -179,7 +179,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			// Do we have enough money to execute the order?
 			requiredCash := float64(orderQty)*candle.Open + b.EvalCommissions(*order, candle.Open)
 			if b.BrokerAvailableCash < requiredCash {
-				log.Printf("[%s]    --> %s - order failed - no cash, need $%v have $%v", candle.TimeStr(), order.String(), requiredCash, b.BrokerAvailableCash)
+				log.Fatalf("[%s]    --> %s - order failed - no cash, need $%v have $%v", candle.TimeStr(), order.String(), requiredCash, b.BrokerAvailableCash)
 				return true
 			}
 
@@ -192,7 +192,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 		}
 
 		// Execute the order!
-		cashChange := float64(orderQty) * candle.Open // SELL? orderQty is <0!
+		cashChange := math.Abs(float64(orderQty)) * candle.Open // SELL? orderQty is <0!
 		oldPosition, haveInPortfolio := b.Portfolio[order.Symbol]
 		newPosition := Position{
 			Symbol:   order.Symbol,
@@ -201,9 +201,13 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 		}
 
 		// Update the available cahs: use money to buy, add money if we are selling
-		if orderQty > 0 || // BUY  -> use my cash
-			haveInPortfolio && orderQty < 0 { // CLOSE
+		if orderQty > 0 { // || // BUY  -> use my cash
+			// haveInPortfolio && orderQty < 0 { // CLOSE
 			b.BrokerAvailableCash -= cashChange // cashChange is <0 is I'm selling
+		}
+
+		if orderQty < 0 {
+			b.BrokerAvailableCash += cashChange
 		}
 
 		// Update the Portfolio
