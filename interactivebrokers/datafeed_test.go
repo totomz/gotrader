@@ -3,13 +3,18 @@ package interactivebrokers
 import (
 	"github.com/hadrianl/ibapi"
 	"github.com/totomz/gotrader"
+	"log"
+	"os"
 	"testing"
 	"time"
 )
 
 func TestIbDataFeedGetCandles5Secs(t *testing.T) {
 
-	ibClient, err := NewIbClientConnector(gateway, port, clientID)
+	stdout := log.New(os.Stdout, "", log.Lshortfile)
+	stderr := log.New(os.Stdout, "[ERROR]", log.Lshortfile)
+
+	ibClient, err := NewIbClientConnector(gateway, port, clientID, stdout, stderr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,8 +23,10 @@ func TestIbDataFeedGetCandles5Secs(t *testing.T) {
 	})
 
 	dataFeed := DataFeed{
-		Contracts: []ibapi.Contract{AMZN},
+		Contracts: []ibapi.Contract{TSLA, AMZN},
 		IbClient:  &ibClient,
+		Stdout:    stdout,
+		Stderr:    stderr,
 	}
 
 	dataChan, err := dataFeed.Run()

@@ -11,7 +11,7 @@ const port = 7497
 const clientID = 100
 
 func NotTest_GetContract(t *testing.T) {
-	ibClient, err := NewIbClientConnector(gateway, port, clientID)
+	ibClient, err := NewIbClientConnector(gateway, port, clientID, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,7 +32,7 @@ func NotTest_GetContract(t *testing.T) {
 
 func TestGetContracts(t *testing.T) {
 
-	ibClient, err := NewIbClientConnector(gateway, port, clientID)
+	ibClient, err := NewIbClientConnector(gateway, port, clientID, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/totomz/gotrader"
 	"go.uber.org/zap"
 	"log"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -44,9 +45,19 @@ type IbClientConnector struct {
 	apiErrors *sync.Map
 	orderMux  sync.Mutex
 	wrapper   *WrapperChannel
+
+	Stdout *log.Logger
+	Stderr *log.Logger
 }
 
-func NewIbClientConnector(gatewayHost string, gatewayPort int, clientID int64) (IbClientConnector, error) {
+func NewIbClientConnector(gatewayHost string, gatewayPort int, clientID int64, stdout, stderr *log.Logger) (IbClientConnector, error) {
+
+	if stdout == nil {
+		stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
+	}
+	if stderr == nil {
+		stderr = log.New(os.Stdout, "[ERROR]", log.Lshortfile|log.Ltime)
+	}
 
 	sharedResponseChannels := sync.Map{}
 	sharedErrorsChannel := sync.Map{}
@@ -55,6 +66,7 @@ func NewIbClientConnector(gatewayHost string, gatewayPort int, clientID int64) (
 		responseData:   &sharedResponseChannels,
 		responseErrors: &sharedErrorsChannel,
 		orderCache:     map[int64]*gotrader.Order{},
+		stdout:         stdout,
 	}
 
 	ic := ibapi.NewIbClient(&wrapper)
@@ -89,13 +101,16 @@ func NewIbClientConnector(gatewayHost string, gatewayPort int, clientID int64) (
 		wrapper:   &wrapper,
 		apiChan:   &sharedResponseChannels,
 		apiErrors: &sharedErrorsChannel,
+		Stdout:    stdout,
+		Stderr:    stderr,
 	}
 
 	return connector, nil
 }
+
 func (ib *IbClientConnector) Close() {
 	err := ib.api.Disconnect()
-	log.Println(err)
+	ib.Stderr.Println(err)
 }
 
 func (ib *IbClientConnector) SubscribeMarketData5sBar(contract *ibapi.Contract) (<-chan ibapi.RealTimeBar, <-chan error) {
@@ -105,14 +120,16 @@ func (ib *IbClientConnector) SubscribeMarketData5sBar(contract *ibapi.Contract) 
 	})
 
 	barData := make(chan ibapi.RealTimeBar)
-	for a := range respData {
-		println(a)
-		barData <- a.(ibapi.RealTimeBar)
-	}
 
-	for b := range respErrors {
-		println(b)
-	}
+	go func() {
+		for a := range respData {
+			barData <- a.(ibapi.RealTimeBar)
+		}
+
+		for b := range respErrors {
+			ib.Stdout.Printf("error: %v", b)
+		}
+	}()
 
 	return barData, respErrors
 }
@@ -227,6 +244,7 @@ type WrapperChannel struct {
 	orderCache     map[int64]*gotrader.Order
 	responseData   *sync.Map
 	responseErrors *sync.Map
+	stdout         *log.Logger
 }
 
 func (w *WrapperChannel) GetNextOrderID() (i int64) {
@@ -236,11 +254,11 @@ func (w *WrapperChannel) GetNextOrderID() (i int64) {
 }
 
 func (w *WrapperChannel) ConnectAck() {
-	log.Println("<ConnectAck>...")
+	w.stdout.Println("<ConnectAck>...")
 }
 
 func (w *WrapperChannel) ConnectionClosed() {
-	log.Println("<ConnectionClosed>...")
+	w.stdout.Println("<ConnectionClosed>...")
 }
 
 func (w *WrapperChannel) NextValidID(reqID int64) {
@@ -248,37 +266,37 @@ func (w *WrapperChannel) NextValidID(reqID int64) {
 }
 
 func (w *WrapperChannel) ManagedAccounts(accountsList []string) {
-	log.Println("<ManagedAccounts>", zap.Strings("accountList", accountsList))
+	w.stdout.Println("<ManagedAccounts>", zap.Strings("accountList", accountsList))
 }
 
 func (w *WrapperChannel) TickPrice(reqID int64, tickType int64, price float64, attrib ibapi.TickAttrib) {
 }
 
 func (w *WrapperChannel) UpdateAccountTime(accTime time.Time) {
-	log.Println("<UpdateAccountTime>", zap.Time("accountTime", accTime))
+	w.stdout.Println("<UpdateAccountTime>", zap.Time("accountTime", accTime))
 }
 
 func (w *WrapperChannel) UpdateAccountValue(tag string, value string, currency string, account string) {
-	log.Println("<UpdateAccountValue>", zap.String("tag", tag), zap.String("value", value), zap.String("currency", currency), zap.String("account", account))
+	w.stdout.Println("<UpdateAccountValue>", zap.String("tag", tag), zap.String("value", value), zap.String("currency", currency), zap.String("account", account))
 }
 
 func (w *WrapperChannel) AccountDownloadEnd(accName string) {
-	log.Println("<AccountDownloadEnd>", zap.String("accountName", accName))
+	w.stdout.Println("<AccountDownloadEnd>", zap.String("accountName", accName))
 }
 
 func (w *WrapperChannel) AccountUpdateMulti(reqID int64, account string, modelCode string, tag string, value string, currency string) {
-	log.Println("<AccountUpdateMulti>")
+	w.stdout.Println("<AccountUpdateMulti>")
 }
 
 func (w *WrapperChannel) AccountUpdateMultiEnd(reqID int64) {
-	log.Println("<AccountUpdateMultiEnd>")
+	w.stdout.Println("<AccountUpdateMultiEnd>")
 }
 
 func (w *WrapperChannel) AccountSummary(reqID int64, account string, tag string, value string, currency string) {
-	//log.Println("<AccountSummary>")
+	// w.stdout.Println("<AccountSummary>")
 	channel, hasChannel := w.responseData.Load(reqID)
 	if !hasChannel {
-		log.Println("[WARNING] got a <AccountSummary> message, but there is no channel...")
+		w.stdout.Println("[WARNING] got a <AccountSummary> message, but there is no channel...")
 	}
 	channel.(chan interface{}) <- AccountUpdate{
 		Account:  account,
@@ -289,60 +307,60 @@ func (w *WrapperChannel) AccountSummary(reqID int64, account string, tag string,
 }
 
 func (w *WrapperChannel) AccountSummaryEnd(reqID int64) {
-	//log.Println("AccountSummaryEnd ma non è del tutto vero mi sa")
+	// w.stdout.Println("AccountSummaryEnd ma non è del tutto vero mi sa")
 	closeChannels(w, reqID)
 }
 
 func (w *WrapperChannel) VerifyMessageAPI(apiData string) {
-	log.Println("<VerifyMessageAPI>", zap.String("apiData", apiData))
+	w.stdout.Println("<VerifyMessageAPI>", zap.String("apiData", apiData))
 }
 
 func (w *WrapperChannel) VerifyCompleted(isSuccessful bool, err string) {
-	log.Println("<VerifyCompleted>", zap.Bool("isSuccessful", isSuccessful), zap.String("error", err))
+	w.stdout.Println("<VerifyCompleted>", zap.Bool("isSuccessful", isSuccessful), zap.String("error", err))
 }
 
 func (w *WrapperChannel) VerifyAndAuthMessageAPI(apiData string, xyzChallange string) {
-	log.Println("<VerifyMessageAPI>", zap.String("apiData", apiData), zap.String("xyzChallange", xyzChallange))
+	w.stdout.Println("<VerifyMessageAPI>", zap.String("apiData", apiData), zap.String("xyzChallange", xyzChallange))
 }
 
 func (w *WrapperChannel) VerifyAndAuthCompleted(isSuccessful bool, err string) {
-	log.Println("<VerifyCompleted>", zap.Bool("isSuccessful", isSuccessful), zap.String("error", err))
+	w.stdout.Println("<VerifyCompleted>", zap.Bool("isSuccessful", isSuccessful), zap.String("error", err))
 }
 
 func (w *WrapperChannel) DisplayGroupList(reqID int64, groups string) {
-	log.Println("<DisplayGroupList>")
+	w.stdout.Println("<DisplayGroupList>")
 }
 
 func (w *WrapperChannel) DisplayGroupUpdated(reqID int64, contractInfo string) {
-	log.Println("<DisplayGroupUpdated>")
+	w.stdout.Println("<DisplayGroupUpdated>")
 }
 
 func (w *WrapperChannel) PositionMulti(reqID int64, account string, modelCode string, contract *ibapi.Contract, position float64, avgCost float64) {
-	log.Println("<PositionMulti>")
+	w.stdout.Println("<PositionMulti>")
 }
 
 func (w *WrapperChannel) PositionMultiEnd(reqID int64) {
-	log.Println("<PositionMultiEnd>")
+	w.stdout.Println("<PositionMultiEnd>")
 }
 
 func (w *WrapperChannel) UpdatePortfolio(contract *ibapi.Contract, position float64, marketPrice float64, marketValue float64, averageCost float64, unrealizedPNL float64, realizedPNL float64, accName string) {
-	log.Println("<UpdatePortfolio>")
+	w.stdout.Println("<UpdatePortfolio>")
 }
 
 func (w *WrapperChannel) Position(account string, contract *ibapi.Contract, position float64, avgCost float64) {
-	log.Println("<UpdatePortfolio>")
+	w.stdout.Println("<UpdatePortfolio>")
 }
 
 func (w *WrapperChannel) PositionEnd() {
-	log.Println("<PositionEnd>")
+	w.stdout.Println("<PositionEnd>")
 }
 
 func (w *WrapperChannel) Pnl(reqID int64, dailyPnL float64, unrealizedPnL float64, realizedPnL float64) {
-	log.Println("<PNL>")
+	w.stdout.Println("<PNL>")
 }
 
 func (w *WrapperChannel) PnlSingle(reqID int64, position int64, dailyPnL float64, unrealizedPnL float64, realizedPnL float64, value float64) {
-	log.Println("<PNLSingle>")
+	w.stdout.Println("<PNLSingle>")
 }
 
 func (w *WrapperChannel) OpenOrder(orderID int64, contract *ibapi.Contract, order *ibapi.Order, orderState *ibapi.OrderState) {
@@ -357,9 +375,6 @@ func (w *WrapperChannel) OpenOrder(orderID int64, contract *ibapi.Contract, orde
 		panic(fmt.Sprintf("unkown order type %v", order.Action))
 	}
 
-	println(orderState.Status)
-	println(orderState.Commission)
-
 	orderStatus := ibOrderStateMap(orderState.Status)
 
 	openorder := gotrader.Order{
@@ -372,55 +387,55 @@ func (w *WrapperChannel) OpenOrder(orderID int64, contract *ibapi.Contract, orde
 	}
 
 	w.orderCache[orderID] = &openorder
-	log.Println("<OpenOrder>")
+	w.stdout.Println("<OpenOrder>")
 }
 
 func (w *WrapperChannel) OpenOrderEnd() {
-	log.Println("<OpenOrderEnd>")
+	w.stdout.Println("<OpenOrderEnd>")
 
 }
 
 func (w *WrapperChannel) OrderStatus(orderID int64, status string, filled float64, remaining float64, avgFillPrice float64, permID int64, parentID int64, lastFillPrice float64, clientID int64, whyHeld string, mktCapPrice float64) {
 	order, found := w.orderCache[orderID]
 	if !found {
-		log.Println(fmt.Sprintf("gor update for an unkonwn order :( orderId:%v status:%v", orderID, status))
+		w.stdout.Println(fmt.Sprintf("gor update for an unkonwn order :( orderId:%v status:%v", orderID, status))
 	}
 
 	orderStatus := ibOrderStateMap(status)
 	order.Status = orderStatus
 	order.SizeFilled = int64(filled)
 
-	log.Println("<OrderStatus>")
+	w.stdout.Println("<OrderStatus>")
 }
 
 func (w *WrapperChannel) ExecDetails(reqID int64, contract *ibapi.Contract, execution *ibapi.Execution) {
-	log.Println("<ExecDetails>")
+	w.stdout.Println("<ExecDetails>")
 }
 
 func (w *WrapperChannel) ExecDetailsEnd(reqID int64) {
-	log.Println("<ExecDetailsEnd>")
+	w.stdout.Println("<ExecDetailsEnd>")
 }
 
 func (w *WrapperChannel) DeltaNeutralValidation(reqID int64, deltaNeutralContract ibapi.DeltaNeutralContract) {
-	log.Println("<DeltaNeutralValidation>")
+	w.stdout.Println("<DeltaNeutralValidation>")
 }
 
 func (w *WrapperChannel) CommissionReport(commissionReport ibapi.CommissionReport) {
-	log.Println("<CommissionReport>")
+	w.stdout.Println("<CommissionReport>")
 }
 
 func (w *WrapperChannel) OrderBound(reqID int64, apiClientID int64, apiOrderID int64) {
-	log.Println("<OrderBound>")
+	w.stdout.Println("<OrderBound>")
 }
 
 func (w *WrapperChannel) ContractDetails(reqID int64, conDetails *ibapi.ContractDetails) {
-	//log.Println("<ContractDetails>")
+	// w.stdout.Println("<ContractDetails>")
 	channel, _ := w.responseData.Load(reqID)
 	channel.(chan interface{}) <- conDetails
 }
 
 func (w *WrapperChannel) ContractDetailsEnd(reqID int64) {
-	//log.Println("<ContractDetailsEnd>")
+	// w.stdout.Println("<ContractDetailsEnd>")
 	closeChannels(w, reqID)
 }
 
@@ -439,23 +454,23 @@ func closeChannels(w *WrapperChannel, reqID int64) {
 }
 
 func (w *WrapperChannel) BondContractDetails(reqID int64, conDetails *ibapi.ContractDetails) {
-	log.Println("<BondContractDetails>")
+	w.stdout.Println("<BondContractDetails>")
 }
 
 func (w *WrapperChannel) SymbolSamples(reqID int64, contractDescriptions []ibapi.ContractDescription) {
-	log.Println("<SymbolSamples>")
+	w.stdout.Println("<SymbolSamples>")
 }
 
 func (w *WrapperChannel) SmartComponents(reqID int64, smartComps []ibapi.SmartComponent) {
-	log.Println("<SmartComponents>")
+	w.stdout.Println("<SmartComponents>")
 }
 
 func (w *WrapperChannel) MarketRule(marketRuleID int64, priceIncrements []ibapi.PriceIncrement) {
-	log.Println("<MarketRule>")
+	w.stdout.Println("<MarketRule>")
 }
 
 func (w *WrapperChannel) RealtimeBar(reqID int64, time int64, open float64, high float64, low float64, close float64, volume int64, wap float64, count int64) {
-	log.Printf("<RealtimeBar> %v %v ", time, low)
+	w.stdout.Printf("<RealtimeBar> %v %v ", time, low)
 	channel, _ := w.responseData.Load(reqID)
 	bar := ibapi.RealTimeBar{
 		Time:   time,
@@ -471,74 +486,74 @@ func (w *WrapperChannel) RealtimeBar(reqID int64, time int64, open float64, high
 }
 
 func (w *WrapperChannel) HistoricalData(reqID int64, bar *ibapi.BarData) {
-	log.Println("<HistoricalData>")
+	w.stdout.Println("<HistoricalData>")
 }
 
 func (w *WrapperChannel) HistoricalDataEnd(reqID int64, startDateStr string, endDateStr string) {
-	log.Println("<HistoricalDataEnd>")
+	w.stdout.Println("<HistoricalDataEnd>")
 }
 
 func (w *WrapperChannel) HistoricalDataUpdate(reqID int64, bar *ibapi.BarData) {
-	log.Println("<HistoricalDataUpdate>")
+	w.stdout.Println("<HistoricalDataUpdate>")
 }
 
 func (w *WrapperChannel) HeadTimestamp(reqID int64, headTimestamp string) {
-	log.Println("<HeadTimestamp>")
+	w.stdout.Println("<HeadTimestamp>")
 }
 
 func (w *WrapperChannel) HistoricalTicks(reqID int64, ticks []ibapi.HistoricalTick, done bool) {
-	log.Println("<HistoricalTicks>")
+	w.stdout.Println("<HistoricalTicks>")
 }
 
 func (w *WrapperChannel) HistoricalTicksBidAsk(reqID int64, ticks []ibapi.HistoricalTickBidAsk, done bool) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) HistoricalTicksLast(reqID int64, ticks []ibapi.HistoricalTickLast, done bool) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) TickSize(reqID int64, tickType int64, size int64) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) TickSnapshotEnd(reqID int64) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) MarketDataType(reqID int64, marketDataType int64) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) TickByTickAllLast(reqID int64, tickType int64, time int64, price float64, size int64, tickAttribLast ibapi.TickAttribLast, exchange string, specialConditions string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) TickByTickBidAsk(reqID int64, time int64, bidPrice float64, askPrice float64, bidSize int64, askSize int64, tickAttribBidAsk ibapi.TickAttribBidAsk) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) TickByTickMidPoint(reqID int64, time int64, midPoint float64) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) TickString(reqID int64, tickType int64, value string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) TickGeneric(reqID int64, tickType int64, value float64) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) TickEFP(reqID int64, tickType int64, basisPoints float64, formattedBasisPoints string, totalDividends float64, holdDays int64, futureLastTradeDate string, dividendImpact float64, dividendsToLastTradeDate float64) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) TickReqParams(reqID int64, minTick float64, bboExchange string, snapshotPermissions int64) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 func (w *WrapperChannel) MktDepthExchanges(depthMktDataDescriptions []ibapi.DepthMktDataDescription) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 /*
@@ -555,91 +570,91 @@ price - the order's price
 size -  the order's size
 */
 func (w *WrapperChannel) UpdateMktDepth(reqID int64, position int64, operation int64, side int64, price float64, size int64) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) UpdateMktDepthL2(reqID int64, position int64, marketMaker string, operation int64, side int64, price float64, size int64, isSmartDepth bool) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) TickOptionComputation(reqID int64, tickType int64, impliedVol float64, delta float64, optPrice float64, pvDiviedn float64, gamma float64, vega float64, theta float64, undPrice float64) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) FundamentalData(reqID int64, data string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) ScannerParameters(xml string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) ScannerData(reqID int64, rank int64, conDetails *ibapi.ContractDetails, distance string, benchmark string, projection string, legs string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) ScannerDataEnd(reqID int64) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) HistogramData(reqID int64, histogram []ibapi.HistogramData) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) RerouteMktDataReq(reqID int64, contractID int64, exchange string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) RerouteMktDepthReq(reqID int64, contractID int64, exchange string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) SecurityDefinitionOptionParameter(reqID int64, exchange string, underlyingContractID int64, tradingClass string, multiplier string, expirations []string, strikes []float64) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) SecurityDefinitionOptionParameterEnd(reqID int64) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) SoftDollarTiers(reqID int64, tiers []ibapi.SoftDollarTier) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) FamilyCodes(famCodes []ibapi.FamilyCode) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) NewsProviders(newsProviders []ibapi.NewsProvider) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) TickNews(tickerID int64, timeStamp int64, providerCode string, articleID string, headline string, extraData string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) NewsArticle(reqID int64, articleType int64, articleText string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) HistoricalNews(reqID int64, time string, providerCode string, articleID string, headline string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) HistoricalNewsEnd(reqID int64, hasMore bool) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) UpdateNewsBulletin(msgID int64, msgType int64, newsMessage string, originExch string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) ReceiveFA(faData int64, cxml string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) CurrentTime(t time.Time) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) Error(reqID int64, errCode int64, errString string) {
@@ -655,17 +670,17 @@ func (w *WrapperChannel) Error(reqID int64, errCode int64, errString string) {
 		close(ch)
 	}
 
-	log.Printf("[ibapi] (%v) ERROR %v - %s", reqID, errCode, errString)
+	w.stdout.Printf("[ibapi] (%v) ERROR %v - %s", reqID, errCode, errString)
 }
 
 func (w *WrapperChannel) CompletedOrder(contract *ibapi.Contract, order *ibapi.Order, orderState *ibapi.OrderState) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) CompletedOrdersEnd() {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }
 
 func (w *WrapperChannel) ReplaceFAEnd(reqID int64, text string) {
-	log.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
+	w.stdout.Fatal("WRAPPER FUNCTION NOT IMPLEMENTED")
 }

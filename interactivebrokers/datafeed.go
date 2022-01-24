@@ -3,7 +3,6 @@ package interactivebrokers
 import (
 	"fmt"
 	"github.com/hadrianl/ibapi"
-	"github.com/pkg/errors"
 	"github.com/totomz/gotrader"
 	"log"
 	"time"
@@ -20,17 +19,14 @@ func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
 
 	feedCandles := make(chan gotrader.Candle, len(feed.Contracts))
 
-	for _, contract := range feed.Contracts {
+	for i := range feed.Contracts {
+		contract := feed.Contracts[i]
 		feed.Stdout.Println(fmt.Sprintf("Starting feed %v", contract))
 		dataChannel, errorChannel := feed.IbClient.SubscribeMarketData5sBar(&contract)
 
 		go func() {
 			for bar := range dataChannel {
-				feed.Stdout.Println(bar)
-
-				println(bar.Time)
-				fmt.Printf("%v", time.Now())
-				fmt.Printf("%v", time.Unix(bar.Time, 0))
+				feed.Stdout.Printf("Bar: %s", bar.String())
 
 				// La ritorno al channel
 				candle := gotrader.Candle{
@@ -59,7 +55,7 @@ func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
 		}()
 
 	}
-	return nil, errors.New("NOT IMPLEMENTED")
+	return feedCandles, nil
 }
 
 // func aazio() {

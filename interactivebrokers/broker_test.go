@@ -6,7 +6,7 @@ import (
 )
 
 func TestGetAvailableCash(t *testing.T) {
-	ibClient, err := NewIbClientConnector(gateway, port, clientID)
+	ibClient, err := NewIbClientConnector(gateway, port, clientID, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestGetAvailableCash(t *testing.T) {
 }
 
 func TestGetOrderNX(t *testing.T) {
-	ibClient, err := NewIbClientConnector(gateway, port, clientID)
+	ibClient, err := NewIbClientConnector(gateway, port, clientID, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestSimpleOrder(t *testing.T) {
 	// ORDERS ARE NOT CANCELLED because the broker api does not allow us to cancel an order :)
 	// YOLO !!
 
-	ibClient, err := NewIbClientConnector(gateway, port, clientID)
+	ibClient, err := NewIbClientConnector(gateway, port, clientID, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

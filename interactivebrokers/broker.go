@@ -41,7 +41,6 @@ func (ib *IbBroker) SubmitOrder(order gotrader.Order) (string, error) {
 
 	orderId, err := ib.IBClient.PlaceOrder(orderType, order.Size, contract)
 	if err != nil {
-		println(err)
 		return "", err
 	}
 
