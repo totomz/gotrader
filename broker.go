@@ -95,7 +95,7 @@ type Broker interface {
 	GetPosition(symbol Symbol) Position
 	Shutdown()
 	AvailableCash() float64
-	ClosePosition(position Position)
+	ClosePosition(position Position) error
 	GetPositions() []Position
 }
 
@@ -266,7 +266,7 @@ func (b *BacktestBrocker) GetPositions() []Position {
 	return openPositions
 }
 
-func (b *BacktestBrocker) ClosePosition(position Position) {
+func (b *BacktestBrocker) ClosePosition(position Position) error {
 	var orderType OrderType
 
 	if position.Size > 0 {
@@ -281,4 +281,6 @@ func (b *BacktestBrocker) ClosePosition(position Position) {
 		Size:   int64(math.Abs(float64(position.Size))),
 		Type:   orderType,
 	})
+
+	return nil
 }

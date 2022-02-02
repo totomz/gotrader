@@ -16,3 +16,4 @@
 server
 .idea
 /autotrader
+/alpaca/.env
