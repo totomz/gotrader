@@ -32,10 +32,7 @@ func TestNewBroker(t *testing.T) {
 
 func TestEmptyPosition(t *testing.T) {
 	t.Skip("Manual test")
-	position, err := alpa.GetPosition("AMZN")
-	if err != nil {
-		t.Fatal(err)
-	}
+	position := alpa.GetPosition("AMZN")
 
 	if position.Size != 0 {
 		t.Fatal("expected 0")
@@ -70,10 +67,7 @@ func TestOrderManagement(t *testing.T) {
 		t.Errorf("invalid filled size")
 	}
 
-	position, err := alpa.GetPosition("VENAR")
-	if err != nil {
-		t.Fatal(err)
-	}
+	position := alpa.GetPosition("VENAR")
 
 	if position.Size != 1 {
 		t.Errorf("invalid position size")
@@ -90,10 +84,7 @@ func TestOrderManagement(t *testing.T) {
 
 	time.Sleep(250 * time.Millisecond)
 
-	positionClosed, err := alpa.GetPosition("VENAR")
-	if err != nil {
-		t.Fatal(err)
-	}
+	positionClosed := alpa.GetPosition("VENAR")
 
 	if positionClosed.Size != 0 {
 		t.Errorf("invalid closed position size")

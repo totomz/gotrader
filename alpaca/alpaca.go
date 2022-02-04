@@ -103,30 +103,36 @@ func (ab *AlpacaBroker) GetOrderByID(OrderID string) (gotrader.Order, error) {
 	return o, nil
 }
 
-func (ab *AlpacaBroker) GetPosition(symbol gotrader.Symbol) (gotrader.Position, error) {
+func (ab *AlpacaBroker) GetPosition(symbol gotrader.Symbol) gotrader.Position {
+	zeroVal := gotrader.Position{
+		Size:     0,
+		AvgPrice: 0,
+		Symbol:   symbol,
+	}
+
 	pos, err := ab.client.GetPosition(string(symbol))
 	if err != nil {
 		if err.Error() == "position does not exist" {
-			return gotrader.Position{
-				Size:     0,
-				AvgPrice: 0,
-				Symbol:   symbol,
-			}, nil
+			return zeroVal
 		}
-		return gotrader.Position{}, err
+
+		ab.Stderr.Printf("error getting position for %v: %v", symbol, err)
+		return zeroVal
 	}
 
-	return PositionMap(pos), nil
+	return PositionMap(pos)
 }
 
 func (ab *AlpacaBroker) ClosePosition(position gotrader.Position) error {
 	return ab.client.ClosePosition(string(position.Symbol))
 }
 
-func (ab *AlpacaBroker) GetPositions() ([]gotrader.Position, error) {
+func (ab *AlpacaBroker) GetPositions() []gotrader.Position {
+	var zeroVal []gotrader.Position
 	positions, err := ab.client.ListPositions()
 	if err != nil {
-		return nil, err
+		ab.Stderr.Printf("error getting positions %v", err)
+		return zeroVal
 	}
 
 	var pos []gotrader.Position
@@ -135,7 +141,7 @@ func (ab *AlpacaBroker) GetPositions() ([]gotrader.Position, error) {
 		pos = append(pos, PositionMap(&p))
 	}
 
-	return pos, nil
+	return pos
 }
 
 func PositionMap(input *alpaca.Position) gotrader.Position {
