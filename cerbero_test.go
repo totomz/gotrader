@@ -103,7 +103,7 @@ func (s *testMockStrategy) Initialize(broker *Cerbero) {
 	}
 }
 
-func (s *testMockStrategy) Signals() *Signal {
+func (s *testMockStrategy) GetSignals() *Signal {
 	return nil
 }
 

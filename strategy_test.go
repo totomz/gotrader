@@ -22,7 +22,7 @@ func (s *MockStrategy) Initialize(cerbero *Cerbero) {
 	s.broker = cerbero.Broker
 }
 
-func (s *MockStrategy) Signals() *Signal {
+func (s *MockStrategy) GetSignals() *Signal {
 	return nil
 }
 

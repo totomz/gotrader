@@ -30,7 +30,7 @@ func (ab *AlpacaBroker) Shutdown() {
 }
 
 func (ab *AlpacaBroker) ProcessOrders(candle gotrader.Candle) []gotrader.Order {
-	ab.Stderr.Panic("ProcessOrders not implemented - should be called in Backtesting, and Alpaca is only for realtime!")
+	// This method is only required for backtesting, to process the orders at new candles.
 	return nil
 }
 
