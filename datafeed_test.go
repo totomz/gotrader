@@ -104,3 +104,29 @@ func TestIBZippedCSVInvalidFile(t *testing.T) {
 		t.Fatalf("The candle channel should be closed")
 	}
 }
+
+func TestIBZippedCsvMultiSymbol(t *testing.T) {
+	datafeed := IBZippedCSV{
+		DataFolder: testFolder,
+		Sday:       time.Date(2021, 1, 5, 0, 0, 0, 0, time.Local),
+		Symbols:    []Symbol{"GME", "DIS", "NFLX"},
+	}
+
+	input, err := datafeed.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	candleBucket := map[string]int{}
+
+	for candle := range input {
+		candleBucket[candle.Time.Format("15:04:05")] += 1
+	}
+
+	for k, v := range candleBucket {
+		if v != len(datafeed.Symbols) {
+			t.Errorf("missing candle for time %s", k)
+		}
+	}
+
+}

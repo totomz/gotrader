@@ -44,6 +44,7 @@ type IBZippedCSV struct {
 	DataFolder string
 	Sday       time.Time
 	Symbol     Symbol
+	Symbols    []Symbol
 	Stdout     *log.Logger
 	Stderr     *log.Logger
 }
@@ -57,55 +58,82 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 		d.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
 	}
 
-	file := filepath.Join(d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), d.Symbol))
-	d.Stdout.Printf("opening file %s", file)
-
-	f, err := os.Open(file)
-	if err != nil {
-
-		// When running tests from the IDE, the working dir is in the folder of the test file.
-		// This porkaround allow us to easily run tests
-		file = filepath.Join("..", d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), d.Symbol))
-		log.Printf("opening file - retrying %s", file)
-		f, err = os.Open(file)
-		if err != nil {
-			return nil, err
-		}
-	}
+	var files []*os.File
+	var scanners []*bufio.Scanner
+	var latestInsts []time.Time
 
 	stream := make(chan Candle, 24*time.Hour/time.Second)
 	d.Stdout.Println("Start feeding the candles in the channel")
 
-	go func() {
-		scanner := bufio.NewScanner(f)
-		defer f.Close()
+	if len(d.Symbols) == 0 {
+		d.Symbols = []Symbol{d.Symbol}
+	}
 
-		latestInst := time.Date(1984, 5, 8, 4, 32, 19, 0, time.Local)
-		for scanner.Scan() {
-			parts := strings.Split(scanner.Text(), ",")
-			inst, err := time.ParseInLocation("20060102 15:04:05", parts[0], time.Local)
+	for _, s := range d.Symbols {
+		file := filepath.Join(d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), s))
+		d.Stdout.Printf("opening file %s", file)
+
+		f, err := os.Open(file)
+
+		if err != nil {
+			// When running tests from the IDE, the working dir is in the folder of the test file.
+			// This porkaround allow us to easily run tests
+			file = filepath.Join("..", d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), s))
+			log.Printf("opening file - retrying %s", file)
+			f, err = os.Open(file)
 			if err != nil {
-				d.Stderr.Println("Can't parse the datetime! Skipping a candle")
-				continue
+				return nil, err
+			}
+		}
+
+		files = append(files, f)
+		scanners = append(scanners, bufio.NewScanner(f))
+		latestInsts = append(latestInsts, time.Date(1984, 5, 8, 4, 32, 19, 0, time.Local))
+	}
+
+	go func() {
+
+		openScanners := len(scanners)
+
+		for {
+			if openScanners == 0 {
+				break
 			}
 
-			// Skip candles that are in the past (should never happen, but happened with IB csv files)
-			if inst.Before(latestInst) || inst.Equal(latestInst) {
-				d.Stdout.Printf("skipping candle in the past! Last: %v, new:%v", latestInst.String(), inst.String())
-				continue
-			}
-			latestInst = inst
+			for i, scanner := range scanners {
 
-			candle := Candle{
-				Symbol: d.Symbol,
-				Time:   inst,
-				Open:   mustFloat(parts[1]),
-				High:   mustFloat(parts[2]),
-				Low:    mustFloat(parts[3]),
-				Close:  mustFloat(parts[4]),
-				Volume: mustInt(parts[5]),
+				if !scanner.Scan() {
+					files[i].Close()
+					openScanners -= 1
+					continue
+				}
+
+				parts := strings.Split(scanner.Text(), ",")
+				inst, err := time.ParseInLocation("20060102 15:04:05", parts[0], time.Local)
+				if err != nil {
+					d.Stderr.Println("Can't parse the datetime! Skipping a candle")
+					continue
+				}
+
+				// Skip candles that are in the past (should never happen, but happened with IB csv files)
+				if inst.Before(latestInsts[i]) || inst.Equal(latestInsts[i]) {
+					d.Stdout.Printf("skipping candle in the past! Last: %v, new:%v", latestInsts[i].String(), inst.String())
+					continue
+				}
+				latestInsts[i] = inst
+
+				candle := Candle{
+					Symbol: d.Symbols[i],
+					Time:   inst,
+					Open:   mustFloat(parts[1]),
+					High:   mustFloat(parts[2]),
+					Low:    mustFloat(parts[3]),
+					Close:  mustFloat(parts[4]),
+					Volume: mustInt(parts[5]),
+				}
+				stream <- candle
+
 			}
-			stream <- candle
 		}
 
 		d.Stdout.Println("closing datafeed")
