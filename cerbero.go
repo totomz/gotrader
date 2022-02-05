@@ -58,22 +58,34 @@ func AggregateBySeconds(sec int) TimeAggregation {
 
 		go func() {
 			defer close(outchan)
-			i := 0
-			aggregated := Candle{}
+
+			aggregatedCandle := map[Symbol]Candle{}
+			aggregatedCounter := map[Symbol]int{}
 			for candle := range inputCandleChan {
+
+				aggregatedCount := aggregatedCounter[candle.Symbol]
+				aggregated, existsCandle := aggregatedCandle[candle.Symbol]
+				if !existsCandle {
+					aggregated = Candle{}
+					aggregatedCandle[candle.Symbol] = aggregated
+				}
+
 				aggregated = mergeCandles(aggregated, candle)
 
 				outchan <- AggregatedCandle{
 					Original:         candle,
 					AggregatedCandle: aggregated,
-					IsAggregated:     i == sec,
+					IsAggregated:     aggregatedCount == sec,
 				}
 
-				if i == sec {
+				if aggregatedCount == sec {
 					aggregated = Candle{}
-					i = 0
+					aggregatedCount = 0
 				}
-				i = i + 1
+				aggregatedCount += 1
+
+				aggregatedCounter[candle.Symbol] = aggregatedCount
+				aggregatedCandle[candle.Symbol] = aggregated
 			}
 		}()
 		return outchan
