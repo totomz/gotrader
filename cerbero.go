@@ -21,18 +21,6 @@ type ExecutionResult struct {
 	FinalCash       float64       `json:"final_cash"`
 }
 
-const (
-	SIGNAL_CASH        = "cash"
-	SIGNAL_TRADES_BUY  = "trades_buy"
-	SIGNAL_TRADES_SELL = "trades_sell"
-	SIGNAL_CANDLES     = "candles"
-)
-
-var ORDERTYPE_TO_SIGNALE = map[OrderType]string{
-	OrderBuy:  SIGNAL_TRADES_BUY,
-	OrderSell: SIGNAL_TRADES_SELL,
-}
-
 // TimeAggregation aggregate the candles from a channel and write the output in a separate channel
 type TimeAggregation func(<-chan Candle) <-chan AggregatedCandle
 
@@ -130,8 +118,7 @@ type Cerbero struct {
 	TimeAggregationFunc TimeAggregation
 	Stdout              *log.Logger
 	Stderr              *log.Logger
-
-	signals Signal
+	Signals             *Signal
 }
 
 func (cerbero *Cerbero) Run() (ExecutionResult, error) {
@@ -143,6 +130,12 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 		cerbero.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
 	}
 
+	if cerbero.Signals == nil {
+		cerbero.Signals = &Signal{
+			Metrics: map[string]*TimeSerie{},
+		}
+	}
+
 	var wg sync.WaitGroup
 	start := time.Now()
 	stats := ExecutionResult{
@@ -150,7 +143,6 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	}
 
 	// Set default values
-	cerbero.signals = Signal{values: map[string]interface{}{}}
 	if cerbero.TimeAggregationFunc == nil {
 		cerbero.TimeAggregationFunc = NoAggregation
 	}
@@ -194,7 +186,12 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			// Realtime broker may use this as a "pre-strategy" entry point
 			ordersExecuted := cerbero.Broker.ProcessOrders(aggregated.Original)
 			for _, order := range ordersExecuted {
-				cerbero.signals.AppendFloat(aggregated.AggregatedCandle, ORDERTYPE_TO_SIGNALE[order.Type], order.AvgFilledPrice)
+				if order.Type == OrderBuy {
+					cerbero.Signals.Append(aggregated.AggregatedCandle, "trades_buy", order.AvgFilledPrice)
+				} else {
+					cerbero.Signals.Append(aggregated.AggregatedCandle, "trades_sell", order.AvgFilledPrice)
+				}
+
 			}
 
 			// Only orders are processed with the raw candles
@@ -205,8 +202,11 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			// Once orders are processed, we should update the available cash,
 			// the broker state and all the fisgnals
 			v := cerbero.Broker.AvailableCash()
-			cerbero.signals.AppendFloat(aggregated.AggregatedCandle, SIGNAL_CASH, v)
-			cerbero.signals.AppendCandle(aggregated.AggregatedCandle, SIGNAL_CANDLES, aggregated.AggregatedCandle)
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "cash", v)
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_open", aggregated.AggregatedCandle.Open)
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_high", aggregated.AggregatedCandle.High)
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_low", aggregated.AggregatedCandle.Low)
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_close", aggregated.AggregatedCandle.Close)
 
 			candles = append(candles, aggregated.AggregatedCandle)
 			cerbero.Strategy.Eval(candles)
@@ -222,10 +222,6 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	stats.FinalCash = cerbero.Broker.AvailableCash()
 	stats.PL = (stats.FinalCash/stats.InitialCash - 1) * 100
 	return stats, nil
-}
-
-func (cerbero *Cerbero) Signals() *Signal {
-	return &cerbero.signals
 }
 
 func Open(candles []Candle) []float64 {
