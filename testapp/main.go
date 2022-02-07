@@ -18,7 +18,7 @@ func main() {
 
 	service := gotrader.Cerbero{
 
-		Signals: &gotrader.Signal{},
+		Signals: &gotrader.MemorySignals{Metrics: map[string]*gotrader.TimeSerie{}},
 
 		Broker: &gotrader.BacktestBrocker{
 			InitialCashUSD: 30000,

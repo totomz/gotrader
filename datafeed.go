@@ -43,6 +43,7 @@ type DataFeed interface {
 type IBZippedCSV struct {
 	DataFolder string
 	Sday       time.Time
+	Slowtime   int
 	Symbol     Symbol
 	Symbols    []Symbol
 	Stdout     *log.Logger
@@ -133,6 +134,10 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 				}
 				stream <- candle
 
+			}
+
+			if d.Slowtime > 0 {
+				time.Sleep(time.Duration(d.Slowtime) * time.Second)
 			}
 		}
 

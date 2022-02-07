@@ -118,7 +118,7 @@ type Cerbero struct {
 	TimeAggregationFunc TimeAggregation
 	Stdout              *log.Logger
 	Stderr              *log.Logger
-	Signals             *Signal
+	Signals             Signal
 }
 
 func (cerbero *Cerbero) Run() (ExecutionResult, error) {
@@ -131,7 +131,7 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	}
 
 	if cerbero.Signals == nil {
-		cerbero.Signals = &Signal{
+		cerbero.Signals = &MemorySignals{
 			Metrics: map[string]*TimeSerie{},
 		}
 	}
@@ -207,9 +207,11 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_high", aggregated.AggregatedCandle.High)
 			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_low", aggregated.AggregatedCandle.Low)
 			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_close", aggregated.AggregatedCandle.Close)
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_volume", float64(aggregated.AggregatedCandle.Volume))
 
 			candles = append(candles, aggregated.AggregatedCandle)
 			cerbero.Strategy.Eval(candles)
+			cerbero.Signals.Flush()
 
 		}
 	}()

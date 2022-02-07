@@ -10,7 +10,7 @@ import (
 
 type DataFeed struct {
 	IbClient  *IbClientConnector
-	Contracts []ibapi.Contract
+	Contracts []*ibapi.Contract
 	Stdout    *log.Logger
 	Stderr    *log.Logger
 }
@@ -22,7 +22,7 @@ func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
 	for i := range feed.Contracts {
 		contract := feed.Contracts[i]
 		feed.Stdout.Println(fmt.Sprintf("Starting feed %v", contract))
-		dataChannel, errorChannel := feed.IbClient.SubscribeMarketData5sBar(&contract)
+		dataChannel, errorChannel := feed.IbClient.SubscribeMarketData5sBar(contract)
 
 		go func() {
 			for bar := range dataChannel {

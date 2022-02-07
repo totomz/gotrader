@@ -9,13 +9,15 @@ import (
 
 // Eval evaluate the strategy. candles[0] is the latest, candles[1] is the latest - 1, and so on
 type MockStrategy struct {
-	signals     *Signal
+	signals     *MemorySignals
 	broker      Broker
 	EvalHandler func(candles []Candle, s *MockStrategy)
 }
 
 func (s *MockStrategy) Initialize(cerbero *Cerbero) {
-	// s.signals = cerbero.signals
+	if s.signals == nil {
+		s.signals = &MemorySignals{Metrics: map[string]*TimeSerie{}}
+	}
 	s.broker = cerbero.Broker
 }
 
@@ -58,7 +60,7 @@ func TestSignalsStrategy(t *testing.T) {
 	symbl := Symbol("FB")
 	sday := time.Date(2021, 1, 11, 0, 0, 0, 0, time.Local)
 
-	signals := Signal{
+	signals := MemorySignals{
 		Metrics: map[string]*TimeSerie{},
 	}
 
@@ -93,10 +95,11 @@ func TestShortOrders(t *testing.T) {
 
 	symbl := Symbol("FB")
 	sday := time.Date(2021, 1, 11, 0, 0, 0, 0, time.Local)
+	signals := &MemorySignals{Metrics: map[string]*TimeSerie{}}
 
 	// Open a short position and close  it
 	// Expected to make money
-	shortStrategy := MockStrategy{signals: &Signal{}, EvalHandler: func(candles []Candle, s *MockStrategy) {
+	shortStrategy := MockStrategy{signals: signals, EvalHandler: func(candles []Candle, s *MockStrategy) {
 		c := candles[len(candles)-1]
 		if c.Time.Equal(time.Date(2021, 1, 11, 17, 11, 30, 00, time.Local)) {
 			_, _ = s.broker.SubmitOrder(Order{
@@ -113,10 +116,12 @@ func TestShortOrders(t *testing.T) {
 				Type:   OrderBuy,
 			})
 		}
+
+		s.signals.Append(c, "ping", c.Open)
 	}}
 
 	service := Cerbero{
-		Signals: &Signal{},
+		Signals: signals,
 		Broker: &BacktestBrocker{
 			InitialCashUSD:      30000,
 			BrokerAvailableCash: 30000,

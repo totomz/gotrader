@@ -5,12 +5,20 @@ import (
 )
 
 // Signal is a convenient way to collect custom time-series
-type Signal struct {
+type Signal interface {
+	Append(candle Candle, name string, value float64)
+
+	// Flush the metrics to the underlying system
+	// This method is called before a new candle is processed by cerbero
+	Flush()
+}
+
+type MemorySignals struct {
 	Metrics map[string]*TimeSerie
 }
 
 // Append a metric to a given signal.
-func (s *Signal) Append(candle Candle, name string, value float64) {
+func (s *MemorySignals) Append(candle Candle, name string, value float64) {
 
 	if s.Metrics == nil {
 		s.Metrics = map[string]*TimeSerie{}
@@ -26,6 +34,10 @@ func (s *Signal) Append(candle Candle, name string, value float64) {
 	}
 
 	s.Metrics[key].Append(candle, value)
+
+}
+
+func (s *MemorySignals) Flush() {
 
 }
 

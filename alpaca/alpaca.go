@@ -8,9 +8,10 @@ import (
 )
 
 type AlpacaBroker struct {
-	Stdout *log.Logger
-	Stderr *log.Logger
-	client alpaca.Client
+	Stdout        *log.Logger
+	Stderr        *log.Logger
+	client        alpaca.Client
+	DisableOrders bool
 }
 
 func NewAlpacaBroker(config AlpacaBroker, apiKey, apiSecret, baseUrl string) *AlpacaBroker {
@@ -50,6 +51,9 @@ func (ab *AlpacaBroker) AvailableCash() float64 {
 
 func (ab *AlpacaBroker) SubmitOrder(order gotrader.Order) (string, error) {
 
+	if ab.DisableOrders {
+		return "", nil
+	}
 	symbl := string(order.Symbol)
 	qty := decimal.NewFromInt(order.Size)
 	side := "buy"
