@@ -21,7 +21,9 @@ const (
 )
 
 var (
-	ErrOrderNotFound = errors.New("order not found")
+	ErrOrderNotFound  = errors.New("order not found")
+	ErrNotEnoughFunds = errors.New("not enough funds")
+	ErrInvalidSize    = errors.New("order.size should be > 0")
 )
 
 type OrderStatus int
@@ -129,7 +131,8 @@ func (b *BacktestBrocker) SubmitOrder(order Order) (string, error) {
 }
 
 func (b *BacktestBrocker) Shutdown() {
-
+	b.OrderMap = sync.Map{}
+	b.Portfolio = map[Symbol]Position{}
 }
 
 func (b *BacktestBrocker) GetOrderByID(orderID string) (Order, error) {
@@ -175,15 +178,12 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 		switch order.Type {
 		case OrderBuy:
 			orderQty = order.Size - order.SizeFilled
-			if candle.Volume == 0 {
-				return true
-			}
 
 			// Check if the candle volume has room for our order
 			// For testing purpose, we assume that our order is always processed
-			if orderQty > candle.Volume {
-				orderQty = candle.Volume
-			}
+			// if orderQty > candle.Volume {
+			// 	orderQty = candle.Volume
+			// }
 
 			// Do we have enough money to execute the order?
 			requiredCash := float64(orderQty)*candle.Open + b.EvalCommissions(*order, candle.Open)

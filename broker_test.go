@@ -9,6 +9,7 @@ import (
 )
 
 func TestBacktestBrocker_TestOrders(t *testing.T) {
+	t.Skip("partially filled orders have been disabled in backtesting :(")
 	t.Parallel()
 
 	broker := BacktestBrocker{
