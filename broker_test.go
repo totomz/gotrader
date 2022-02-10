@@ -3,7 +3,6 @@ package gotrader
 import (
 	"errors"
 	"math"
-	"sync"
 	"testing"
 	"time"
 )
@@ -15,7 +14,7 @@ func TestBacktestBrocker_TestOrders(t *testing.T) {
 	broker := BacktestBrocker{
 		InitialCashUSD:      30000,
 		BrokerAvailableCash: 30000,
-		OrderMap:            sync.Map{},
+		OrderMap:            map[string]*Order{},
 		Portfolio:           map[Symbol]Position{},
 		EvalCommissions:     Nocommissions,
 	}

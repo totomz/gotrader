@@ -6,8 +6,6 @@ import (
 	"log"
 	"math"
 	"math/rand"
-	"os"
-	"sync"
 	"time"
 )
 
@@ -109,54 +107,75 @@ var Nocommissions = func(order Order, price float64) float64 { return 0 }
 type BacktestBrocker struct {
 	InitialCashUSD      float64
 	BrokerAvailableCash float64
-	OrderMap            sync.Map
-	Portfolio           map[Symbol]Position
-	EvalCommissions     EvaluateCommissions
-	Stdout              *log.Logger
-	Stderr              *log.Logger
+	// OrderMap            sync.Map
+	OrderMap        map[string]*Order
+	Portfolio       map[Symbol]Position
+	EvalCommissions EvaluateCommissions
+	Stdout          *log.Logger
+	Stderr          *log.Logger
 }
 
 func (b *BacktestBrocker) SubmitOrder(order Order) (string, error) {
 
 	if order.Size <= 0 {
-		return "", errors.New("order size must be > 0")
+		return "", ErrInvalidSize
+	}
+
+	// Check that we do not have an open order for the same symbol
+	var err error
+
+	// b.OrderMap.Range(func(existingOrderId, o interface{}) bool {
+	for existingOrderId, existingOrder := range b.OrderMap {
+		// existingOrder := o.(*Order)
+
+		if existingOrder.Status >= OrderStatusFullFilled {
+			// No need to keep track of closed orders
+			delete(b.OrderMap, existingOrderId)
+			continue
+		}
+
+		if existingOrder.Symbol != order.Symbol {
+			continue
+		}
+		err = fmt.Errorf("order duplicated: the existing order %s is still open", existingOrderId)
+		break
 	}
 
 	order.Id = RandUid()
 	order.Status = OrderStatusAccepted
 
-	b.OrderMap.Store(order.Id, &order)
+	if err != nil {
+		order.Status = OrderStatusRejected
+		return order.Id, err
+	}
 
-	return order.Id, nil
+	b.OrderMap[order.Id] = &order
+	return order.Id, err
 }
 
 func (b *BacktestBrocker) Shutdown() {
-	b.OrderMap = sync.Map{}
+	b.OrderMap = nil
+	b.Portfolio = nil
+
+	b.OrderMap = map[string]*Order{}
 	b.Portfolio = map[Symbol]Position{}
 }
 
 func (b *BacktestBrocker) GetOrderByID(orderID string) (Order, error) {
-	order, found := b.OrderMap.Load(orderID)
+	order, found := b.OrderMap[orderID]
 	if !found {
 		return Order{}, ErrOrderNotFound
 	}
-	return *order.(*Order), nil
+	return *order, nil
 }
 
 func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
-	if b.Stdout == nil {
-		b.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
-	}
-	if b.Stderr == nil {
-		b.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
-	}
 
 	// b.Stdout.Printf(fmt.Sprintf("[%v] processing orders ", candle.TimeStr()))
 	var orderPlaced []Order
 
-	b.OrderMap.Range(func(key interface{}, value interface{}) bool {
-
-		order := value.(*Order)
+	// b.OrderMap.Range(func(key interface{}, value interface{}) bool {
+	for _, order := range b.OrderMap {
 
 		if order.SubmittedTime.IsZero() {
 			order.SubmittedTime = candle.Time
@@ -166,7 +185,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			order.Status == OrderStatusRejected ||
 			order.Symbol != candle.Symbol {
 			// b.Stdout.Printf(".    --> %s SKIPPED", order.String())
-			return true
+			continue
 		}
 
 		// b.Stdout.Printf("[%s]    --> %s ", candle.TimeStr(), order.String())
@@ -189,7 +208,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			requiredCash := float64(orderQty)*candle.Open + b.EvalCommissions(*order, candle.Open)
 			if b.BrokerAvailableCash < requiredCash {
 				b.Stderr.Fatalf("[%s]    --> %s - order failed - no cash, need $%v have $%v", candle.TimeStr(), order.String(), requiredCash, b.BrokerAvailableCash)
-				return true
+				continue
 			}
 
 		case OrderSell:
@@ -240,11 +259,13 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			order.Status = OrderStatusFullFilled
 		}
 
-		b.Stdout.Printf("[%s]    --> %s: filled %v@%v ", candle.TimeStr(), order.String(), orderQty, candle.Open)
+		if b.Stdout != nil {
+			b.Stdout.Printf("[%s]    --> %s: filled %v@%v ", candle.TimeStr(), order.String(), orderQty, candle.Open)
+		}
+
 		orderPlaced = append(orderPlaced, *order)
 
-		return true
-	})
+	}
 
 	return orderPlaced
 }

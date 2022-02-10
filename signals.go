@@ -19,6 +19,15 @@ type Signal interface {
 	GetMetrics() map[string]*TimeSerie
 }
 
+type NoOpSignals struct {
+}
+
+func (n *NoOpSignals) Append(candle Candle, name string, value float64) {}
+func (n *NoOpSignals) Flush()                                           {}
+func (n *NoOpSignals) GetMetrics() map[string]*TimeSerie {
+	return map[string]*TimeSerie{}
+}
+
 type MemorySignals struct {
 	Metrics map[string]*TimeSerie
 }

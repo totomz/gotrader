@@ -2,7 +2,6 @@ package gotrader
 
 import (
 	"github.com/google/go-cmp/cmp"
-	"sync"
 	"testing"
 	"time"
 )
@@ -145,7 +144,7 @@ func TestStrategyReadsCandles(t *testing.T) {
 		Broker: &BacktestBrocker{
 			InitialCashUSD:      30000,
 			BrokerAvailableCash: 30000,
-			OrderMap:            sync.Map{},
+			OrderMap:            map[string]*Order{},
 			Portfolio:           map[Symbol]Position{},
 			EvalCommissions:     Nocommissions,
 		},
@@ -243,7 +242,7 @@ func TestOrderExecutionAfter1sec(t *testing.T) {
 		Broker: &BacktestBrocker{
 			InitialCashUSD:      1000,
 			BrokerAvailableCash: 1000,
-			OrderMap:            sync.Map{},
+			OrderMap:            map[string]*Order{},
 			Portfolio:           map[Symbol]Position{},
 			EvalCommissions:     Nocommissions,
 		},

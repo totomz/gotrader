@@ -2,7 +2,6 @@ package gotrader
 
 import (
 	"github.com/cinar/indicator"
-	"sync"
 	"testing"
 	"time"
 )
@@ -69,7 +68,7 @@ func TestSignalsStrategy(t *testing.T) {
 		Broker: &BacktestBrocker{
 			InitialCashUSD:      30000,
 			BrokerAvailableCash: 30000,
-			OrderMap:            sync.Map{},
+			OrderMap:            map[string]*Order{},
 			Portfolio:           map[Symbol]Position{},
 			EvalCommissions:     Nocommissions,
 		},
@@ -125,7 +124,7 @@ func TestShortOrders(t *testing.T) {
 		Broker: &BacktestBrocker{
 			InitialCashUSD:      30000,
 			BrokerAvailableCash: 30000,
-			OrderMap:            sync.Map{},
+			OrderMap:            map[string]*Order{},
 			Portfolio:           map[Symbol]Position{},
 			EvalCommissions:     Nocommissions,
 		},

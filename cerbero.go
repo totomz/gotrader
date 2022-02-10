@@ -123,11 +123,8 @@ type Cerbero struct {
 
 func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 
-	if cerbero.Stdout == nil {
-		cerbero.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
-	}
 	if cerbero.Stderr == nil {
-		cerbero.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
+		cerbero.Stderr = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
 	}
 
 	if cerbero.Signals == nil {
@@ -165,7 +162,10 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			cerbero.Stderr.Fatalf("Error consuming base feed -- %v", err)
 			return
 		}
-		cerbero.Stdout.Println("started base feed consumer routine")
+		if cerbero.Stdout != nil {
+			cerbero.Stdout.Println("started base feed consumer routine")
+		}
+
 		for tick := range basefeed {
 			baseFeedCloneForTimeAggregation <- tick
 		}
@@ -177,7 +177,9 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	go func() {
 		defer wg.Done()
 		var candles []Candle
-		cerbero.Stdout.Println("started strategy routine")
+		if cerbero.Stdout != nil {
+			cerbero.Stdout.Println("started strategy routine")
+		}
 
 		for aggregated := range aggregatedFeed {
 
