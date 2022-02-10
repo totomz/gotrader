@@ -17,3 +17,5 @@ server
 .idea
 /autotrader
 /alpaca/.env
+/plotly/datatest.json
+/gotaset/signals.json
