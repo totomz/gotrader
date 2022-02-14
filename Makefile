@@ -14,3 +14,8 @@ test: get build
 
 test-all: get build		
 	go test -parallel 8 -count=1 -cover ./...
+
+build-gotaset:
+	go vet
+	GOOS=linux go build -o bin/gotaset_linux gotaset/app/main.go
+	GOOS=darwin go build -o bin/gotaset_darwin gotaset/app/main.go

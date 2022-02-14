@@ -61,8 +61,8 @@ func (s *MemorySignals) GetMetrics() map[string]*TimeSerie {
 }
 
 type TimeSerie struct {
-	X []time.Time
-	Y []float64
+	X []time.Time `json:"x"`
+	Y []float64   `json:"y"`
 }
 
 // Append an element to the end of this ts
@@ -180,4 +180,14 @@ func SignalsToPlotly(symbol string, signal Signal) []byte {
 	*/
 
 	return res
+}
+
+func SignalsToGrafana(signal Signal) []byte {
+
+	m := signal.GetMetrics()
+	b, err := json.Marshal(m)
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
