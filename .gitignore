@@ -19,3 +19,6 @@ server
 /alpaca/.env
 /plotly/datatest.json
 /gotaset/signals.json
+/bin
+signals*.json
+pippo
