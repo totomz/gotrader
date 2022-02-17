@@ -211,10 +211,13 @@ func (s *Service) Query(w http.ResponseWriter, r *http.Request) {
 			datapoints = append(datapoints, []float64{ts.Y[i], float64(ts.X[i].UnixMilli())})
 		}
 
-		metrics = append(metrics, GrafanaTS{
-			Target:     target.Target,
-			Datapoints: datapoints,
-		})
+		if len(datapoints) > 0 {
+			metrics = append(metrics, GrafanaTS{
+				Target:     target.Target,
+				Datapoints: datapoints,
+			})
+		}
+
 	}
 
 	res, err := json.Marshal(metrics)
