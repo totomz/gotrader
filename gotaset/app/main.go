@@ -75,7 +75,7 @@ func main() {
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		log.Fatal(err)
+		stdout.Fatal(err)
 	}
 	defer watcher.Close()
 
@@ -91,7 +91,6 @@ func main() {
 				if !ok {
 					return
 				}
-				// log.Println("event:", event)
 				if event.Op&fsnotify.Write == fsnotify.Write {
 					stdout.Println("reloading ", event.Name)
 					service.values = LoadMetrics(*filePath) // no one will never know
@@ -100,14 +99,14 @@ func main() {
 				if !ok {
 					return
 				}
-				log.Println("error:", err)
+				stdout.Println("error:", err)
 			}
 		}
 	}()
 
 	err = watcher.Add(*filePath)
 	if err != nil {
-		log.Fatal(err)
+		stdout.Fatal(err)
 	}
 
 	netIp := GetOutboundIP()
@@ -187,10 +186,10 @@ func (s *Service) Query(w http.ResponseWriter, r *http.Request) {
 	var metrics []GrafanaTS
 
 	for _, target := range query.Targets {
-		log.Printf("loading %s", target.Target)
+		stdout.Printf("loading %s", target.Target)
 		ts, exists := s.values[target.Target]
 		if !exists {
-			log.Printf("[ERROR] serie %s not found", target.Target)
+			stdout.Printf("[ERROR] serie %s not found", target.Target)
 		}
 
 		var datapoints [][]float64
@@ -233,7 +232,7 @@ func (s *Service) Query(w http.ResponseWriter, r *http.Request) {
 func GetOutboundIP() net.IP {
 	conn, err := net.Dial("udp", "8.8.8.8:80")
 	if err != nil {
-		log.Fatal(err)
+		stdout.Fatal(err)
 	}
 	defer conn.Close()
 
