@@ -2,6 +2,7 @@ package gotrader
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -10,7 +11,11 @@ import (
 
 // Signal is a convenient way to collect custom time-series
 type Signal interface {
+	// Append the value as last element of this serie
 	Append(candle Candle, name string, value float64)
+
+	// Get the i-th element back  (Get(0) return the last element, Get(1) return the last - 1 element)
+	Get(candle Candle, name string, i int) (float64, error)
 
 	// Flush the metrics to the underlying system
 	// This method is called before a new candle is processed by cerbero
@@ -22,8 +27,18 @@ type Signal interface {
 type NoOpSignals struct {
 }
 
-func (n *NoOpSignals) Append(candle Candle, name string, value float64) {}
-func (n *NoOpSignals) Flush()                                           {}
+func (n *NoOpSignals) Append(candle Candle, name string, value float64) {
+
+}
+
+func (n *NoOpSignals) Flush() {
+
+}
+
+func (s *NoOpSignals) Get(candle Candle, name string, i int) (float64, error) {
+	return 0, nil
+}
+
 func (n *NoOpSignals) GetMetrics() map[string]*TimeSerie {
 	return map[string]*TimeSerie{}
 }
@@ -54,6 +69,20 @@ func (s *MemorySignals) Append(candle Candle, name string, value float64) {
 
 func (s *MemorySignals) Flush() {
 
+}
+
+func (s *MemorySignals) Get(candle Candle, name string, i int) (float64, error) {
+	ts, found := s.Metrics[string(candle.Symbol)+"."+name]
+	if !found {
+		return 0, errors.New("signal not found")
+	}
+
+	index := len(ts.Y) - 1 - i
+	if index < 0 {
+		return 0, errors.New("index too old")
+	}
+
+	return ts.Y[index], nil
 }
 
 func (s *MemorySignals) GetMetrics() map[string]*TimeSerie {
