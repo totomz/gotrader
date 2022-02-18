@@ -188,6 +188,7 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			// Realtime broker may use this as a "pre-strategy" entry point
 			ordersExecuted := cerbero.Broker.ProcessOrders(aggregated.Original)
 			for _, order := range ordersExecuted {
+				cerbero.Signals.Append(aggregated.AggregatedCandle, "position_pl", order.FinalPl)
 				if order.Type == OrderBuy {
 					cerbero.Signals.Append(aggregated.AggregatedCandle, "trades_buy", order.AvgFilledPrice)
 				} else {

@@ -1,6 +1,6 @@
 
-ROOT=$(shell git rev-parse --show-toplevel)
-
+COMMIT = $(shell git rev-parse HEAD | head -c 7)
+TIMESTAMP=$(shell TZ='UTC' date '+%Y%m%dt%H%M')
 
 build: get
 	go vet
@@ -17,5 +17,5 @@ test-all: get build
 
 build-gotaset:
 	go vet
-	GOOS=linux go build -o bin/gotaset_linux gotaset/app/main.go
-	GOOS=darwin go build -o bin/gotaset_darwin gotaset/app/main.go
+	GOOS=linux go build -ldflags "-X main.build=$(TIMESTAMP)-$(COMMIT)" -o bin/gotaset_linux gotaset/app/main.go
+	GOOS=darwin go build -ldflags "-X main.build=$(TIMESTAMP)-$(COMMIT)" -o bin/gotaset_darwin gotaset/app/main.go

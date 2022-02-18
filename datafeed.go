@@ -80,7 +80,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 			// When running tests from the IDE, the working dir is in the folder of the test file.
 			// This porkaround allow us to easily run tests
 			file = filepath.Join("..", d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), s))
-			log.Printf("opening file - retrying %s", file)
+			d.Stdout.Printf("opening file - retrying %s", file)
 			f, err = os.Open(file)
 			if err != nil {
 				return nil, err

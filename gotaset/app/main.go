@@ -17,6 +17,7 @@ import (
 
 var (
 	stdout = log.New(os.Stdout, "", log.Ltime|log.Lshortfile)
+	build  string // set by make build
 )
 
 type Service struct {
@@ -70,7 +71,10 @@ func LoadMetrics(path string) map[string]gotrader.TimeSerie {
 
 func main() {
 
-	filePath := flag.String("file", "gotaset/signals_grafana.json", "file to watch")
+	stdout.Printf("Build: %s", build)
+
+	// filePath := flag.String("file", "gotaset/signals_grafana.json", "file to watch")
+	filePath := flag.String("file", "../gotrader-strategy/plotly/signals_grafana.json", "file to watch")
 	flag.Parse()
 
 	watcher, err := fsnotify.NewWatcher()

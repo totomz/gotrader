@@ -46,6 +46,11 @@ func TestSignalGet(t *testing.T) {
 		t.Errorf("expected last, got %f / an error: %v", last, noErr)
 	}
 
+	last, noErr = signals.Get(c, "test", 1)
+	if noErr != nil || last != 7.0 {
+		t.Errorf("expected last, got %f / an error: %v", last, noErr)
+	}
+
 	five, noErr := signals.Get(c, "test", 3)
 	if noErr != nil || five != 5.0 {
 		t.Errorf("expected last, got %f / an error: %v", five, noErr)

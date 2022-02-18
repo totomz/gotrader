@@ -54,6 +54,10 @@ type Order struct {
 
 	// SubmittedTime When the order has been submitted (candle time)
 	SubmittedTime time.Time
+
+	// FinalPl is the final profit&loss; it is populated only if the current order close an open position, meaning that
+	// // after the execution of this order, broker.GetPosition(order.symbol) is 0
+	FinalPl float64
 }
 
 func (o Order) String() string {
@@ -174,7 +178,6 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 	// b.Stdout.Printf(fmt.Sprintf("[%v] processing orders ", candle.TimeStr()))
 	var orderPlaced []Order
 
-	// b.OrderMap.Range(func(key interface{}, value interface{}) bool {
 	for _, order := range b.OrderMap {
 
 		if order.SubmittedTime.IsZero() {
@@ -227,8 +230,9 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			Size:     orderQty,
 			AvgPrice: candle.Open,
 		}
+		order.AvgFilledPrice = candle.Open // <-- this is a bug. Need to calculate a weighted average
 
-		// Update the available cahs: use money to buy, add money if we are selling
+		// Update the available cash: use money to buy, add money if we are selling
 		if orderQty > 0 { // || // BUY  -> use my cash
 			// haveInPortfolio && orderQty < 0 { // CLOSE
 			b.BrokerAvailableCash -= cashChange // cashChange is <0 is I'm selling
@@ -246,18 +250,28 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			newPosition.AvgPrice = (float64(oldPosition.Size)*oldPosition.AvgPrice + float64(orderQty)*candle.Open) / float64(oldPosition.Size+orderQty)
 		}
 
+		pl := 0.0
 		if newPosition.Size == 0 {
+			// the position has been closed; I can calculate the p&l for this trade
+			// as the difference from the closing order and the position (for long)
+			pl = float64(order.Size)*order.AvgFilledPrice - float64(oldPosition.Size)*oldPosition.AvgPrice
 			delete(b.Portfolio, order.Symbol)
+
+			// short order are on the opposite
+			if oldPosition.Size < 0 {
+				pl = -1*float64(oldPosition.Size)*oldPosition.AvgPrice - float64(order.Size)*order.AvgFilledPrice
+			}
+
 		} else {
 			b.Portfolio[order.Symbol] = newPosition
 		}
 
 		// Update the order status
 		order.SizeFilled += int64(math.Abs(float64(orderQty)))
-		order.AvgFilledPrice = candle.Open // <-- this is a bug. Need to calculate a weighted average
 		if order.SizeFilled == order.Size {
 			order.Status = OrderStatusFullFilled
 		}
+		order.FinalPl = pl
 
 		if b.Stdout != nil {
 			b.Stdout.Printf("[%s]    --> %s: filled %v@%v ", candle.TimeStr(), order.String(), orderQty, candle.Open)
