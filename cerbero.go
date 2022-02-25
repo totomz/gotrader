@@ -186,16 +186,7 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			// notify the broker that it must process all the orders in the queue
 			// run it synchronously with the datafeed for backtest.
 			// Realtime broker may use this as a "pre-strategy" entry point
-			ordersExecuted := cerbero.Broker.ProcessOrders(aggregated.Original)
-			for _, order := range ordersExecuted {
-				cerbero.Signals.Append(aggregated.AggregatedCandle, "position_pl", order.FinalPl)
-				if order.Type == OrderBuy {
-					cerbero.Signals.Append(aggregated.AggregatedCandle, "trades_buy", order.AvgFilledPrice)
-				} else {
-					cerbero.Signals.Append(aggregated.AggregatedCandle, "trades_sell", order.AvgFilledPrice)
-				}
-
-			}
+			_ = cerbero.Broker.ProcessOrders(aggregated.Original)
 
 			// Only orders are processed with the raw candles
 			if !aggregated.IsAggregated {

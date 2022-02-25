@@ -54,10 +54,6 @@ type Order struct {
 
 	// SubmittedTime When the order has been submitted (candle time)
 	SubmittedTime time.Time
-
-	// FinalPl is the final profit&loss; it is populated only if the current order close an open position, meaning that
-	// // after the execution of this order, broker.GetPosition(order.symbol) is 0
-	FinalPl float64
 }
 
 func (o Order) String() string {
@@ -117,6 +113,7 @@ type BacktestBrocker struct {
 	EvalCommissions EvaluateCommissions
 	Stdout          *log.Logger
 	Stderr          *log.Logger
+	Signals         Signal
 }
 
 func (b *BacktestBrocker) SubmitOrder(order Order) (string, error) {
@@ -175,6 +172,11 @@ func (b *BacktestBrocker) GetOrderByID(orderID string) (Order, error) {
 
 func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 
+	if b.Signals == nil {
+		b.Signals = &MemorySignals{
+			Metrics: map[string]*TimeSerie{},
+		}
+	}
 	// b.Stdout.Printf(fmt.Sprintf("[%v] processing orders ", candle.TimeStr()))
 	var orderPlaced []Order
 
@@ -236,10 +238,12 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 		if orderQty > 0 { // || // BUY  -> use my cash
 			// haveInPortfolio && orderQty < 0 { // CLOSE
 			b.BrokerAvailableCash -= cashChange // cashChange is <0 is I'm selling
+			b.Signals.Append(candle, "trades_buy", order.AvgFilledPrice)
 		}
 
 		if orderQty < 0 {
 			b.BrokerAvailableCash += cashChange
+			b.Signals.Append(candle, "trades_sell", order.AvgFilledPrice)
 		}
 
 		// Update the Portfolio
@@ -266,12 +270,15 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			b.Portfolio[order.Symbol] = newPosition
 		}
 
+		// A trade is a position that has been opened and close;
+		// try to get the final PL for the current trad
+		b.Signals.Append(candle, "trades_pl", pl)
+
 		// Update the order status
 		order.SizeFilled += int64(math.Abs(float64(orderQty)))
 		if order.SizeFilled == order.Size {
 			order.Status = OrderStatusFullFilled
 		}
-		order.FinalPl = pl
 
 		if b.Stdout != nil {
 			b.Stdout.Printf("[%s]    --> %s: filled %v@%v ", candle.TimeStr(), order.String(), orderQty, candle.Open)
