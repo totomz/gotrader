@@ -37,7 +37,7 @@ func (s *MockStrategy) Eval(candles []Candle) {
 	s.signals.Append(c, "psar_trend", float64(trend[len(trend)-1]))
 
 	if c.Time.Equal(time.Date(2021, 1, 11, 17, 11, 30, 00, time.Local)) {
-		_, _ = s.broker.SubmitOrder(Order{
+		_, _ = s.broker.SubmitOrder(c, Order{
 			Size:   50,
 			Symbol: "FB",
 			Type:   OrderBuy,
@@ -45,7 +45,7 @@ func (s *MockStrategy) Eval(candles []Candle) {
 	}
 
 	if c.Time.Equal(time.Date(2021, 1, 11, 18, 32, 30, 00, time.Local)) {
-		_, _ = s.broker.SubmitOrder(Order{
+		_, _ = s.broker.SubmitOrder(c, Order{
 			Size:   50,
 			Symbol: "FB",
 			Type:   OrderSell,
@@ -101,7 +101,7 @@ func TestShortOrders(t *testing.T) {
 	shortStrategy := MockStrategy{signals: signals, EvalHandler: func(candles []Candle, s *MockStrategy) {
 		c := candles[len(candles)-1]
 		if c.Time.Equal(time.Date(2021, 1, 11, 17, 11, 30, 00, time.Local)) {
-			_, _ = s.broker.SubmitOrder(Order{
+			_, _ = s.broker.SubmitOrder(c, Order{
 				Size:   50,
 				Symbol: "FB",
 				Type:   OrderSell,
@@ -109,7 +109,7 @@ func TestShortOrders(t *testing.T) {
 		}
 
 		if c.Time.Equal(time.Date(2021, 1, 11, 20, 13, 45, 00, time.Local)) {
-			_, _ = s.broker.SubmitOrder(Order{
+			_, _ = s.broker.SubmitOrder(c, Order{
 				Size:   50,
 				Symbol: "FB",
 				Type:   OrderBuy,

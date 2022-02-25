@@ -89,7 +89,7 @@ func RandUid() string {
 
 // Broker interacts with a stock broker
 type Broker interface {
-	SubmitOrder(order Order) (string, error)
+	SubmitOrder(candle Candle, order Order) (string, error)
 	GetOrderByID(OrderID string) (Order, error)
 	ProcessOrders(candle Candle) []Order
 	GetPosition(symbol Symbol) Position
@@ -116,7 +116,7 @@ type BacktestBrocker struct {
 	Signals         Signal
 }
 
-func (b *BacktestBrocker) SubmitOrder(order Order) (string, error) {
+func (b *BacktestBrocker) SubmitOrder(_ Candle, order Order) (string, error) {
 
 	if order.Size <= 0 {
 		return "", ErrInvalidSize
@@ -311,6 +311,7 @@ func (b *BacktestBrocker) GetPositions() []Position {
 	return openPositions
 }
 
+// ClosePosition @deprecated
 func (b *BacktestBrocker) ClosePosition(position Position) error {
 	var orderType OrderType
 
@@ -321,7 +322,7 @@ func (b *BacktestBrocker) ClosePosition(position Position) error {
 		orderType = OrderBuy
 	}
 
-	b.SubmitOrder(Order{
+	b.SubmitOrder(Candle{}, Order{
 		Symbol: position.Symbol,
 		Size:   int64(math.Abs(float64(position.Size))),
 		Type:   orderType,

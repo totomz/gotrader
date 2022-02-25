@@ -24,7 +24,7 @@ func TestBacktestBrocker_TestOrders(t *testing.T) {
 		t.Fatal("Expected an error if the order is not found")
 	}
 
-	orderIdAmzn, err := broker.SubmitOrder(Order{
+	orderIdAmzn, err := broker.SubmitOrder(Candle{}, Order{
 		Id:     "this will be changed",
 		Size:   178,
 		Symbol: "AMZN",
@@ -34,7 +34,7 @@ func TestBacktestBrocker_TestOrders(t *testing.T) {
 		t.Fatal("orderId has not been override for AMZN")
 	}
 
-	orderIdTsla, err := broker.SubmitOrder(Order{
+	orderIdTsla, err := broker.SubmitOrder(Candle{}, Order{
 		Id:     "this will be changed",
 		Size:   456,
 		Symbol: "TSLA",

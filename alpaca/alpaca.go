@@ -54,7 +54,7 @@ func OrderToString(order *alpaca.Order) string {
 	return fmt.Sprintf("{%s - %s %v %s }", order.ID, order.Side, order.Qty, order.Symbol)
 }
 
-func (ab *AlpacaBroker) SubmitOrder(order gotrader.Order) (string, error) {
+func (ab *AlpacaBroker) SubmitOrder(candle gotrader.Candle, order gotrader.Order) (string, error) {
 
 	// if ab.DisableOrders {
 	// 	ab.Stderr.Printf("alpaca orders are disabled!")
@@ -83,22 +83,10 @@ func (ab *AlpacaBroker) SubmitOrder(order gotrader.Order) (string, error) {
 
 	ab.Stdout.Printf("submitted order %s", OrderToString(placedOrder))
 
-	go func() {
-		realOrder, err := ab.GetOrderByID(placedOrder.ID)
-		if err != nil {
-			ab.Stderr.Printf("can't get executed order: %v", err)
-			return
-		}
-
-		// need a candle to append a signal
-		// to have the symbol and the time.
-		c := gotrader.Candle{
-			Symbol: gotrader.Symbol(placedOrder.Symbol),
-			Time:   placedOrder.SubmittedAt,
-		}
-		ab.Signals.Append(c, fmt.Sprintf("trades_%s", side), realOrder.AvgFilledPrice)
-		ab.Signals.Append(c, "trades_size", float64(order.Size))
-	}()
+	// The order is submitted but we don't know yet the
+	// avgFlledPrice, neither if it has been fullfiled or not.
+	ab.Signals.Append(candle, fmt.Sprintf("trades_%s", side), candle.Close)
+	ab.Signals.Append(candle, "trades_size", float64(order.Size))
 
 	return placedOrder.ID, nil
 }
@@ -109,12 +97,18 @@ func (ab *AlpacaBroker) GetOrderByID(OrderID string) (gotrader.Order, error) {
 		return gotrader.Order{}, err
 	}
 
+	avgFilledSize := 0.0
+
+	if order.FilledAvgPrice != nil {
+		avgFilledSize = order.FilledAvgPrice.InexactFloat64()
+	}
+
 	o := gotrader.Order{
 		Id:             order.ID,
 		Size:           order.FilledQty.IntPart(),
 		Symbol:         gotrader.Symbol(order.Symbol),
 		SizeFilled:     order.FilledQty.IntPart(),
-		AvgFilledPrice: order.FilledAvgPrice.InexactFloat64(),
+		AvgFilledPrice: avgFilledSize,
 		SubmittedTime:  order.SubmittedAt,
 	}
 

@@ -16,9 +16,14 @@ var (
 	apiSecret = os.Getenv("ALPACA_SECRET")
 	baseUrl   = "https://paper-api.alpaca.markets"
 
+	c = gotrader.Candle{}
+
 	alpa = NewAlpacaBroker(AlpacaBroker{
 		Stdout: stdout,
 		Stderr: stderr,
+		Signals: &gotrader.MemorySignals{
+			Metrics: map[string]*gotrader.TimeSerie{},
+		},
 	}, apiKey, apiSecret, baseUrl)
 )
 
@@ -41,7 +46,7 @@ func TestEmptyPosition(t *testing.T) {
 
 func TestOrderManagement(t *testing.T) {
 	t.Skip("Manual test")
-	orderId, err := alpa.SubmitOrder(gotrader.Order{
+	orderId, err := alpa.SubmitOrder(c, gotrader.Order{
 		Size:   1,
 		Symbol: "VENAR",
 		Type:   gotrader.OrderBuy,
@@ -92,7 +97,7 @@ func TestOrderManagement(t *testing.T) {
 		t.Errorf("invalid closed position size")
 	}
 
-	orderIdShort, err := alpa.SubmitOrder(gotrader.Order{
+	orderIdShort, err := alpa.SubmitOrder(c, gotrader.Order{
 		Size:   1,
 		Symbol: "TSLA",
 		Type:   gotrader.OrderSell,
@@ -120,8 +125,8 @@ func TestOrderManagement(t *testing.T) {
 
 func TestInvertPosition(t *testing.T) {
 
-	// t.Skip("Manual test")
-	_, err := alpa.SubmitOrder(gotrader.Order{
+	t.Skip("TODO Manual test")
+	_, err := alpa.SubmitOrder(c, gotrader.Order{
 		Size:   3,
 		Symbol: "TSLA",
 		Type:   gotrader.OrderSell,
@@ -130,8 +135,8 @@ func TestInvertPosition(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = alpa.SubmitOrder(gotrader.Order{
-		Size:   6,
+	_, err = alpa.SubmitOrder(c, gotrader.Order{
+		Size:   3,
 		Symbol: "TSLA",
 		Type:   gotrader.OrderBuy,
 	})
@@ -139,5 +144,16 @@ func TestInvertPosition(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	_, err = alpa.SubmitOrder(c, gotrader.Order{
+		Size:   3,
+		Symbol: "TSLA",
+		Type:   gotrader.OrderBuy,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pos := alpa.GetPosition("TSLA")
+	println(pos.Size)
 	println("e mo?")
 }
