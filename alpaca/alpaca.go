@@ -1,6 +1,7 @@
 package alpacabroker
 
 import (
+	"fmt"
 	"github.com/alpacahq/alpaca-trade-api-go/v2/alpaca"
 	"github.com/shopspring/decimal"
 	"github.com/totomz/gotrader"
@@ -49,9 +50,14 @@ func (ab *AlpacaBroker) AvailableCash() float64 {
 	return account.Cash.InexactFloat64()
 }
 
+func OrderToString(order *alpaca.Order) string {
+	return fmt.Sprintf("{%s - %s %v %s }", order.ID, order.Side, order.Qty, order.Symbol)
+}
+
 func (ab *AlpacaBroker) SubmitOrder(order gotrader.Order) (string, error) {
 
 	if ab.DisableOrders {
+		ab.Stderr.Printf("alpaca orders are disabled!")
 		return "", nil
 	}
 	symbl := string(order.Symbol)
@@ -74,6 +80,8 @@ func (ab *AlpacaBroker) SubmitOrder(order gotrader.Order) (string, error) {
 		ab.Stderr.Printf("can't place order %s: %v", order.String(), err)
 		return "", err
 	}
+
+	ab.Stdout.Printf("submitted order %s", OrderToString(placedOrder))
 
 	return placedOrder.ID, nil
 }
@@ -102,6 +110,10 @@ func (ab *AlpacaBroker) GetOrderByID(OrderID string) (gotrader.Order, error) {
 		o.Status = gotrader.OrderStatusRejected
 	default:
 		o.Status = gotrader.OrderStatusAccepted
+	}
+
+	if order.Side == "sell" {
+		o.Type = gotrader.OrderSell
 	}
 
 	return o, nil

@@ -67,6 +67,10 @@ func TestOrderManagement(t *testing.T) {
 		t.Errorf("invalid filled size")
 	}
 
+	if submitted.Type != gotrader.OrderBuy {
+		t.Errorf("supposed a buy")
+	}
+
 	position := alpa.GetPosition("VENAR")
 
 	if position.Size != 1 {
@@ -88,6 +92,30 @@ func TestOrderManagement(t *testing.T) {
 
 	if positionClosed.Size != 0 {
 		t.Errorf("invalid closed position size")
+	}
+
+	orderIdShort, err := alpa.SubmitOrder(gotrader.Order{
+		Size:   1,
+		Symbol: "TSLA",
+		Type:   gotrader.OrderSell,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	shortOrder, err := alpa.GetOrderByID(orderIdShort)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if shortOrder.Type != gotrader.OrderSell {
+		t.Fatal("expected a sell")
+	}
+
+	position = alpa.GetPosition("TSLA")
+	err = alpa.ClosePosition(position)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 }
