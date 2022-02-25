@@ -9,10 +9,10 @@ import (
 )
 
 type AlpacaBroker struct {
-	Stdout        *log.Logger
-	Stderr        *log.Logger
-	client        alpaca.Client
-	DisableOrders bool
+	Stdout  *log.Logger
+	Stderr  *log.Logger
+	Signals gotrader.Signal
+	client  alpaca.Client
 }
 
 func NewAlpacaBroker(config AlpacaBroker, apiKey, apiSecret, baseUrl string) *AlpacaBroker {
@@ -56,10 +56,10 @@ func OrderToString(order *alpaca.Order) string {
 
 func (ab *AlpacaBroker) SubmitOrder(order gotrader.Order) (string, error) {
 
-	if ab.DisableOrders {
-		ab.Stderr.Printf("alpaca orders are disabled!")
-		return "", nil
-	}
+	// if ab.DisableOrders {
+	// 	ab.Stderr.Printf("alpaca orders are disabled!")
+	// 	return "", nil
+	// }
 	symbl := string(order.Symbol)
 	qty := decimal.NewFromInt(order.Size)
 	side := "buy"
@@ -82,6 +82,23 @@ func (ab *AlpacaBroker) SubmitOrder(order gotrader.Order) (string, error) {
 	}
 
 	ab.Stdout.Printf("submitted order %s", OrderToString(placedOrder))
+
+	go func() {
+		realOrder, err := ab.GetOrderByID(placedOrder.ID)
+		if err != nil {
+			ab.Stderr.Printf("can't get executed order: %v", err)
+			return
+		}
+
+		// need a candle to append a signal
+		// to have the symbol and the time.
+		c := gotrader.Candle{
+			Symbol: gotrader.Symbol(placedOrder.Symbol),
+			Time:   placedOrder.SubmittedAt,
+		}
+		ab.Signals.Append(c, fmt.Sprintf("trades_%s", side), realOrder.AvgFilledPrice)
+		ab.Signals.Append(c, "trades_size", float64(order.Size))
+	}()
 
 	return placedOrder.ID, nil
 }
