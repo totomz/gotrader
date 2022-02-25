@@ -268,6 +268,9 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 
 		} else {
 			b.Portfolio[order.Symbol] = newPosition
+			s := float64(newPosition.Size)
+			d := math.Abs(s)
+			b.Signals.Append(candle, "trades_leg", s/d)
 		}
 
 		// A trade is a position that has been opened and close;
