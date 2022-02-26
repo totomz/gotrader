@@ -125,7 +125,7 @@ func TestOrderManagement(t *testing.T) {
 
 func TestInvertPosition(t *testing.T) {
 
-	t.Skip("TODO Manual test")
+	// t.Skip("TODO Manual test")
 	_, err := alpa.SubmitOrder(c, gotrader.Order{
 		Size:   3,
 		Symbol: "TSLA",
@@ -135,13 +135,12 @@ func TestInvertPosition(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = alpa.SubmitOrder(c, gotrader.Order{
-		Size:   3,
-		Symbol: "TSLA",
-		Type:   gotrader.OrderBuy,
-	})
-	if err != nil {
-		t.Fatal(err)
+	time.Sleep(1 * time.Second)
+
+	p := alpa.GetPosition("TSLA")
+	eClose := alpa.ClosePosition(p)
+	if eClose != nil {
+		t.Fatal(eClose)
 	}
 
 	_, err = alpa.SubmitOrder(c, gotrader.Order{

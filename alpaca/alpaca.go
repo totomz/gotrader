@@ -6,6 +6,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/totomz/gotrader"
 	"log"
+	"time"
 )
 
 type AlpacaBroker struct {
@@ -63,9 +64,11 @@ func (ab *AlpacaBroker) SubmitOrder(candle gotrader.Candle, order gotrader.Order
 	symbl := string(order.Symbol)
 	qty := decimal.NewFromInt(order.Size)
 	side := "buy"
+	sizeSide := float64(order.Size)
 
 	if order.Type == gotrader.OrderSell {
 		side = "sell"
+		sizeSide *= -1
 	}
 
 	orderRequest := alpaca.PlaceOrderRequest{
@@ -86,7 +89,7 @@ func (ab *AlpacaBroker) SubmitOrder(candle gotrader.Candle, order gotrader.Order
 	// The order is submitted but we don't know yet the
 	// avgFlledPrice, neither if it has been fullfiled or not.
 	ab.Signals.Append(candle, fmt.Sprintf("trades_%s", side), candle.Close)
-	ab.Signals.Append(candle, "trades_size", float64(order.Size))
+	ab.Signals.Append(candle, "trades_size", sizeSide)
 
 	return placedOrder.ID, nil
 }
@@ -151,7 +154,30 @@ func (ab *AlpacaBroker) GetPosition(symbol gotrader.Symbol) gotrader.Position {
 }
 
 func (ab *AlpacaBroker) ClosePosition(position gotrader.Position) error {
-	return ab.client.ClosePosition(string(position.Symbol))
+	symbol := string(position.Symbol)
+
+	err := ab.client.ClosePosition(symbol)
+	if err != nil {
+		return err
+	}
+
+	for {
+		p, e := ab.client.GetPosition(symbol)
+		if e != nil {
+			if e.Error() == "position does not exist" {
+				break
+			}
+			return e
+		}
+
+		if p.Qty.IsZero() {
+			break
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return err
 }
 
 func (ab *AlpacaBroker) GetPositions() []gotrader.Position {

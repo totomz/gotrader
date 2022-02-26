@@ -125,22 +125,24 @@ func (b *BacktestBrocker) SubmitOrder(_ Candle, order Order) (string, error) {
 	// Check that we do not have an open order for the same symbol
 	var err error
 
-	// b.OrderMap.Range(func(existingOrderId, o interface{}) bool {
-	for existingOrderId, existingOrder := range b.OrderMap {
-		// existingOrder := o.(*Order)
-
-		if existingOrder.Status >= OrderStatusFullFilled {
-			// No need to keep track of closed orders
-			delete(b.OrderMap, existingOrderId)
-			continue
-		}
-
-		if existingOrder.Symbol != order.Symbol {
-			continue
-		}
-		err = fmt.Errorf("order duplicated: the existing order %s is still open", existingOrderId)
-		break
-	}
+	// This is disabled to add support for "invert position" and "doublebuy"
+	// The strategy must submit multiple orders whithin the same candle
+	// for existingOrderId, existingOrder := range b.OrderMap {
+	// 	// existingOrder := o.(*Order)
+	//
+	// 	if existingOrder.Status >= OrderStatusFullFilled {
+	// 		// No need to keep track of closed orders
+	// 		delete(b.OrderMap, existingOrderId)
+	// 		continue
+	// 	}
+	//
+	// 	if existingOrder.Symbol != order.Symbol {
+	// 		continue
+	// 	}
+	//
+	// 	err = fmt.Errorf("order duplicated: the existing order %s is still open", existingOrderId)
+	// 	break
+	// }
 
 	order.Id = RandUid()
 	order.Status = OrderStatusAccepted
