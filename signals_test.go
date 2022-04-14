@@ -1,62 +1,64 @@
 package gotrader
 
 import (
-	"github.com/google/go-cmp/cmp"
-	"sort"
 	"testing"
 	"time"
 )
 
-func TestAddGetSignals(t *testing.T) {
-	signals := Signal{}
+func TestSignalGet(t *testing.T) {
 
-	now := time.Now()
+	signals := MemorySignals{Metrics: map[string]*TimeSerie{}}
 
-	for i := 1; i < 100; i++ {
-		now = now.Add(1 * time.Second)
-		candle := Candle{Time: now}
-		values := make([]float64, i)
+	c := Candle{
+		Time:   time.Time{},
+		Symbol: "SYMBL",
+	}
+	signals.Append(c, "test", 1.0)
+	signals.Append(c, "test", 2.0)
+	signals.Append(c, "test", 3.0)
+	signals.Append(c, "test", 4.0)
+	signals.Append(c, "test", 5.0)
+	signals.Append(c, "test", 6.0)
+	signals.Append(c, "test", 7.0)
+	signals.Append(c, "test", 8.0)
 
-		for j := 0; j < i; j++ {
-			values[j] = float64(i)
-		}
-
-		signals.AppendFloat(candle, "keya", values[len(values)-1])
-		signals.AppendFloat(candle, "keyb", values[len(values)-1])
+	metrics := signals.GetMetrics()
+	n, exists := metrics["SYMBL.test"]
+	if !exists {
+		t.Error("signal 'SYMBL.test' not found - note that the symbol is prependend to the metric!")
 	}
 
-	// Candles, trades, cash are always added to the signals
-	wantedKeys := []string{"keya", "keyb"}
-	gotKeys := signals.Keys()
-
-	sort.Strings(wantedKeys)
-	sort.Strings(gotKeys)
-
-	if diff := cmp.Diff(wantedKeys, gotKeys); diff != "" {
-		t.Errorf("Key() mismatch (-want +got):\n%s", diff)
+	if len(n.X) != len(n.Y) {
+		t.Errorf("len(n.X)[%v] != len(n.Y)[%v]", len(n.X), len(n.Y))
 	}
 
-	vals, _ := signals.Get("keya")
-	bomber := vals.(TimeSerieFloat)
-	if len(bomber.Y) != len(bomber.Y) {
-		t.Error("X and Y should have the same length")
-	}
-	for i, v := range bomber.Y {
-		if i+1 != int(v) {
-			t.Errorf("expecting %v got %v", i, v)
-		}
+	if len(n.X) != 8 {
+		t.Error("len(n.X) != 7")
 	}
 
-	jsonData, err := signals.ToJson()
-	if err != nil {
-		t.Error(err)
+	_, shouldErr := signals.Get(c, "blablah", 152)
+	if shouldErr == nil {
+		t.Errorf("signal blablah should not exts")
 	}
-	println(string(jsonData))
 
-	/*
-		[{
-			'timestamp': '2013-10-04 22:23:00',
-			<serieName>: <serieValue>
-		}]
-	*/
+	last, noErr := signals.Get(c, "test", 0)
+	if noErr != nil || last != 8.0 {
+		t.Errorf("expected last, got %f / an error: %v", last, noErr)
+	}
+
+	last, noErr = signals.Get(c, "test", 1)
+	if noErr != nil || last != 7.0 {
+		t.Errorf("expected last, got %f / an error: %v", last, noErr)
+	}
+
+	five, noErr := signals.Get(c, "test", 3)
+	if noErr != nil || five != 5.0 {
+		t.Errorf("expected last, got %f / an error: %v", five, noErr)
+	}
+
+	a, tooOld := signals.Get(c, "test", 357)
+	if tooOld == nil {
+		t.Errorf("expected a \"too old\" error, got a result: %f", a)
+	}
+
 }

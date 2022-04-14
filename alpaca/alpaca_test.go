@@ -16,9 +16,14 @@ var (
 	apiSecret = os.Getenv("ALPACA_SECRET")
 	baseUrl   = "https://paper-api.alpaca.markets"
 
+	c = gotrader.Candle{}
+
 	alpa = NewAlpacaBroker(AlpacaBroker{
 		Stdout: stdout,
 		Stderr: stderr,
+		Signals: &gotrader.MemorySignals{
+			Metrics: map[string]*gotrader.TimeSerie{},
+		},
 	}, apiKey, apiSecret, baseUrl)
 )
 
@@ -41,7 +46,7 @@ func TestEmptyPosition(t *testing.T) {
 
 func TestOrderManagement(t *testing.T) {
 	t.Skip("Manual test")
-	orderId, err := alpa.SubmitOrder(gotrader.Order{
+	orderId, err := alpa.SubmitOrder(c, gotrader.Order{
 		Size:   1,
 		Symbol: "VENAR",
 		Type:   gotrader.OrderBuy,
@@ -49,8 +54,6 @@ func TestOrderManagement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	println(orderId)
 
 	time.Sleep(2 * time.Second)
 
@@ -65,6 +68,10 @@ func TestOrderManagement(t *testing.T) {
 
 	if submitted.SizeFilled != 1 {
 		t.Errorf("invalid filled size")
+	}
+
+	if submitted.Type != gotrader.OrderBuy {
+		t.Errorf("supposed a buy")
 	}
 
 	position := alpa.GetPosition("VENAR")
@@ -90,4 +97,62 @@ func TestOrderManagement(t *testing.T) {
 		t.Errorf("invalid closed position size")
 	}
 
+	orderIdShort, err := alpa.SubmitOrder(c, gotrader.Order{
+		Size:   1,
+		Symbol: "TSLA",
+		Type:   gotrader.OrderSell,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	shortOrder, err := alpa.GetOrderByID(orderIdShort)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if shortOrder.Type != gotrader.OrderSell {
+		t.Fatal("expected a sell")
+	}
+
+	position = alpa.GetPosition("TSLA")
+	err = alpa.ClosePosition(position)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
+
+func TestInvertPosition(t *testing.T) {
+
+	// t.Skip("TODO Manual test")
+	_, err := alpa.SubmitOrder(c, gotrader.Order{
+		Size:   3,
+		Symbol: "TSLA",
+		Type:   gotrader.OrderSell,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	time.Sleep(1 * time.Second)
+
+	p := alpa.GetPosition("TSLA")
+	eClose := alpa.ClosePosition(p)
+	if eClose != nil {
+		t.Fatal(eClose)
+	}
+
+	_, err = alpa.SubmitOrder(c, gotrader.Order{
+		Size:   3,
+		Symbol: "TSLA",
+		Type:   gotrader.OrderBuy,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pos := alpa.GetPosition("TSLA")
+	println(pos.Size)
+	println("e mo?")
 }

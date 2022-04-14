@@ -130,3 +130,35 @@ func TestIBZippedCsvMultiSymbol(t *testing.T) {
 	}
 
 }
+
+func TestIBZippedCsvMultiSymbolAggregation(t *testing.T) {
+	datafeed := IBZippedCSV{
+		DataFolder: testFolder,
+		Sday:       time.Date(2021, 1, 5, 0, 0, 0, 0, time.Local),
+		Symbols:    []Symbol{"GME", "DIS", "NFLX"},
+	}
+
+	input, err := datafeed.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	aggregate := AggregateBySeconds(5)
+	aggragtedChan := aggregate(input)
+
+	candleBucket := map[string]int{}
+
+	for candle := range aggragtedChan {
+		c := candle.AggregatedCandle
+		if candle.IsAggregated {
+			candleBucket[c.Time.Format("15:04:05")] += 1
+		}
+	}
+
+	for k, v := range candleBucket {
+		if v != len(datafeed.Symbols) {
+			t.Errorf("missing candle for time %s", k)
+		}
+	}
+
+}

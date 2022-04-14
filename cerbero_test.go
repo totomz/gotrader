@@ -2,7 +2,6 @@ package gotrader
 
 import (
 	"github.com/google/go-cmp/cmp"
-	"sync"
 	"testing"
 	"time"
 )
@@ -145,7 +144,7 @@ func TestStrategyReadsCandles(t *testing.T) {
 		Broker: &BacktestBrocker{
 			InitialCashUSD:      30000,
 			BrokerAvailableCash: 30000,
-			OrderMap:            sync.Map{},
+			OrderMap:            map[string]*Order{},
 			Portfolio:           map[Symbol]Position{},
 			EvalCommissions:     Nocommissions,
 		},
@@ -184,7 +183,7 @@ func TestOrderExecutionAfter1sec(t *testing.T) {
 
 			if latest.Time.Equal(time.Date(2021, 1, 11, 18, 23, 30, 0, time.Local)) {
 				// Expect to buy the second after this inst @ 262.23
-				_orderID, err = _broker.SubmitOrder(Order{
+				_orderID, err = _broker.SubmitOrder(latest, Order{
 					Id:     RandUid(),
 					Size:   1,
 					Symbol: "FB",
@@ -222,7 +221,7 @@ func TestOrderExecutionAfter1sec(t *testing.T) {
 
 			if latest.Time.Equal(time.Date(2021, 1, 11, 18, 36, 45, 0, time.Local)) {
 				// Expect to sell the second after this inst @ 262.86
-				_, err = _broker.SubmitOrder(Order{
+				_, err = _broker.SubmitOrder(latest, Order{
 					Id:     RandUid(),
 					Size:   1,
 					Symbol: "FB",
@@ -243,7 +242,7 @@ func TestOrderExecutionAfter1sec(t *testing.T) {
 		Broker: &BacktestBrocker{
 			InitialCashUSD:      1000,
 			BrokerAvailableCash: 1000,
-			OrderMap:            sync.Map{},
+			OrderMap:            map[string]*Order{},
 			Portfolio:           map[Symbol]Position{},
 			EvalCommissions:     Nocommissions,
 		},

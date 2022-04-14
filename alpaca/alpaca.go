@@ -1,16 +1,19 @@
 package alpacabroker
 
 import (
+	"fmt"
 	"github.com/alpacahq/alpaca-trade-api-go/v2/alpaca"
 	"github.com/shopspring/decimal"
 	"github.com/totomz/gotrader"
 	"log"
+	"time"
 )
 
 type AlpacaBroker struct {
-	Stdout *log.Logger
-	Stderr *log.Logger
-	client alpaca.Client
+	Stdout  *log.Logger
+	Stderr  *log.Logger
+	Signals gotrader.Signal
+	client  alpaca.Client
 }
 
 func NewAlpacaBroker(config AlpacaBroker, apiKey, apiSecret, baseUrl string) *AlpacaBroker {
@@ -23,6 +26,33 @@ func NewAlpacaBroker(config AlpacaBroker, apiKey, apiSecret, baseUrl string) *Al
 	config.client = client
 
 	return &config
+}
+
+func (ab *AlpacaBroker) SignalsPortfolioStatus() {
+	positions, err := ab.client.ListPositions()
+	if err != nil {
+		ab.Stderr.Printf("polling can't list positions: %v", err)
+	}
+
+	totalAssets := ab.AvailableCash()
+
+	for _, p := range positions {
+		c := gotrader.Candle{
+			Symbol: gotrader.Symbol(p.Symbol),
+			Time:   time.Now(),
+		}
+		pl := p.UnrealizedPL.InexactFloat64()
+		totalAssets += pl
+		ab.Signals.Append(c, "alpaca.stock.pl", pl)
+		ab.Signals.Append(c, "alpaca.stock.qty", p.Qty.InexactFloat64())
+	}
+
+	// signals sucks, why am I passing a Candle?
+	c := gotrader.Candle{
+		Symbol: "AMD",
+		Time:   time.Now(),
+	}
+	ab.Signals.Append(c, "alpaca.totalAssets", totalAssets)
 }
 
 func (ab *AlpacaBroker) Shutdown() {
@@ -48,14 +78,24 @@ func (ab *AlpacaBroker) AvailableCash() float64 {
 	return account.Cash.InexactFloat64()
 }
 
-func (ab *AlpacaBroker) SubmitOrder(order gotrader.Order) (string, error) {
+func OrderToString(order *alpaca.Order) string {
+	return fmt.Sprintf("{%s - %s %v %s }", order.ID, order.Side, order.Qty, order.Symbol)
+}
 
+func (ab *AlpacaBroker) SubmitOrder(candle gotrader.Candle, order gotrader.Order) (string, error) {
+
+	// if ab.DisableOrders {
+	// 	ab.Stderr.Printf("alpaca orders are disabled!")
+	// 	return "", nil
+	// }
 	symbl := string(order.Symbol)
 	qty := decimal.NewFromInt(order.Size)
 	side := "buy"
+	sizeSide := float64(order.Size)
 
 	if order.Type == gotrader.OrderSell {
 		side = "sell"
+		sizeSide *= -1
 	}
 
 	orderRequest := alpaca.PlaceOrderRequest{
@@ -71,6 +111,13 @@ func (ab *AlpacaBroker) SubmitOrder(order gotrader.Order) (string, error) {
 		return "", err
 	}
 
+	ab.Stdout.Printf("submitted order %s", OrderToString(placedOrder))
+
+	// The order is submitted but we don't know yet the
+	// avgFlledPrice, neither if it has been fullfiled or not.
+	ab.Signals.Append(candle, fmt.Sprintf("trades_%s", side), candle.Close)
+	ab.Signals.Append(candle, "trades_size", sizeSide)
+
 	return placedOrder.ID, nil
 }
 
@@ -80,12 +127,18 @@ func (ab *AlpacaBroker) GetOrderByID(OrderID string) (gotrader.Order, error) {
 		return gotrader.Order{}, err
 	}
 
+	avgFilledSize := 0.0
+
+	if order.FilledAvgPrice != nil {
+		avgFilledSize = order.FilledAvgPrice.InexactFloat64()
+	}
+
 	o := gotrader.Order{
 		Id:             order.ID,
 		Size:           order.FilledQty.IntPart(),
 		Symbol:         gotrader.Symbol(order.Symbol),
 		SizeFilled:     order.FilledQty.IntPart(),
-		AvgFilledPrice: order.FilledAvgPrice.InexactFloat64(),
+		AvgFilledPrice: avgFilledSize,
 		SubmittedTime:  order.SubmittedAt,
 	}
 
@@ -98,6 +151,10 @@ func (ab *AlpacaBroker) GetOrderByID(OrderID string) (gotrader.Order, error) {
 		o.Status = gotrader.OrderStatusRejected
 	default:
 		o.Status = gotrader.OrderStatusAccepted
+	}
+
+	if order.Side == "sell" {
+		o.Type = gotrader.OrderSell
 	}
 
 	return o, nil
@@ -124,7 +181,30 @@ func (ab *AlpacaBroker) GetPosition(symbol gotrader.Symbol) gotrader.Position {
 }
 
 func (ab *AlpacaBroker) ClosePosition(position gotrader.Position) error {
-	return ab.client.ClosePosition(string(position.Symbol))
+	symbol := string(position.Symbol)
+
+	err := ab.client.ClosePosition(symbol)
+	if err != nil {
+		return err
+	}
+
+	for {
+		p, e := ab.client.GetPosition(symbol)
+		if e != nil {
+			if e.Error() == "position does not exist" {
+				break
+			}
+			return e
+		}
+
+		if p.Qty.IsZero() {
+			break
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	return err
 }
 
 func (ab *AlpacaBroker) GetPositions() []gotrader.Position {

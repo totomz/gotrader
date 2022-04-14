@@ -6,8 +6,6 @@ import (
 	"log"
 	"math"
 	"math/rand"
-	"os"
-	"sync"
 	"time"
 )
 
@@ -21,7 +19,9 @@ const (
 )
 
 var (
-	ErrOrderNotFound = errors.New("order not found")
+	ErrOrderNotFound  = errors.New("order not found")
+	ErrNotEnoughFunds = errors.New("not enough funds")
+	ErrInvalidSize    = errors.New("order.size should be > 0")
 )
 
 type OrderStatus int
@@ -89,7 +89,7 @@ func RandUid() string {
 
 // Broker interacts with a stock broker
 type Broker interface {
-	SubmitOrder(order Order) (string, error)
+	SubmitOrder(candle Candle, order Order) (string, error)
 	GetOrderByID(OrderID string) (Order, error)
 	ProcessOrders(candle Candle) []Order
 	GetPosition(symbol Symbol) Position
@@ -107,53 +107,82 @@ var Nocommissions = func(order Order, price float64) float64 { return 0 }
 type BacktestBrocker struct {
 	InitialCashUSD      float64
 	BrokerAvailableCash float64
-	OrderMap            sync.Map
-	Portfolio           map[Symbol]Position
-	EvalCommissions     EvaluateCommissions
-	Stdout              *log.Logger
-	Stderr              *log.Logger
+	// OrderMap            sync.Map
+	OrderMap        map[string]*Order
+	Portfolio       map[Symbol]Position
+	EvalCommissions EvaluateCommissions
+	Stdout          *log.Logger
+	Stderr          *log.Logger
+	Signals         Signal
 }
 
-func (b *BacktestBrocker) SubmitOrder(order Order) (string, error) {
+func (b *BacktestBrocker) SubmitOrder(_ Candle, order Order) (string, error) {
 
 	if order.Size <= 0 {
-		return "", errors.New("order size must be > 0")
+		return "", ErrInvalidSize
 	}
+
+	// Check that we do not have an open order for the same symbol
+	var err error
+
+	// This is disabled to add support for "invert position" and "doublebuy"
+	// The strategy must submit multiple orders whithin the same candle
+	// for existingOrderId, existingOrder := range b.OrderMap {
+	// 	// existingOrder := o.(*Order)
+	//
+	// 	if existingOrder.Status >= OrderStatusFullFilled {
+	// 		// No need to keep track of closed orders
+	// 		delete(b.OrderMap, existingOrderId)
+	// 		continue
+	// 	}
+	//
+	// 	if existingOrder.Symbol != order.Symbol {
+	// 		continue
+	// 	}
+	//
+	// 	err = fmt.Errorf("order duplicated: the existing order %s is still open", existingOrderId)
+	// 	break
+	// }
 
 	order.Id = RandUid()
 	order.Status = OrderStatusAccepted
 
-	b.OrderMap.Store(order.Id, &order)
+	if err != nil {
+		order.Status = OrderStatusRejected
+		return order.Id, err
+	}
 
-	return order.Id, nil
+	b.OrderMap[order.Id] = &order
+	return order.Id, err
 }
 
 func (b *BacktestBrocker) Shutdown() {
+	b.OrderMap = nil
+	b.Portfolio = nil
 
+	b.OrderMap = map[string]*Order{}
+	b.Portfolio = map[Symbol]Position{}
 }
 
 func (b *BacktestBrocker) GetOrderByID(orderID string) (Order, error) {
-	order, found := b.OrderMap.Load(orderID)
+	order, found := b.OrderMap[orderID]
 	if !found {
 		return Order{}, ErrOrderNotFound
 	}
-	return *order.(*Order), nil
+	return *order, nil
 }
 
 func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
-	if b.Stdout == nil {
-		b.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
-	}
-	if b.Stderr == nil {
-		b.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
-	}
 
+	if b.Signals == nil {
+		b.Signals = &MemorySignals{
+			Metrics: map[string]*TimeSerie{},
+		}
+	}
 	// b.Stdout.Printf(fmt.Sprintf("[%v] processing orders ", candle.TimeStr()))
 	var orderPlaced []Order
 
-	b.OrderMap.Range(func(key interface{}, value interface{}) bool {
-
-		order := value.(*Order)
+	for _, order := range b.OrderMap {
 
 		if order.SubmittedTime.IsZero() {
 			order.SubmittedTime = candle.Time
@@ -163,7 +192,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			order.Status == OrderStatusRejected ||
 			order.Symbol != candle.Symbol {
 			// b.Stdout.Printf(".    --> %s SKIPPED", order.String())
-			return true
+			continue
 		}
 
 		// b.Stdout.Printf("[%s]    --> %s ", candle.TimeStr(), order.String())
@@ -175,21 +204,18 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 		switch order.Type {
 		case OrderBuy:
 			orderQty = order.Size - order.SizeFilled
-			if candle.Volume == 0 {
-				return true
-			}
 
 			// Check if the candle volume has room for our order
 			// For testing purpose, we assume that our order is always processed
-			if orderQty > candle.Volume {
-				orderQty = candle.Volume
-			}
+			// if orderQty > candle.Volume {
+			// 	orderQty = candle.Volume
+			// }
 
 			// Do we have enough money to execute the order?
 			requiredCash := float64(orderQty)*candle.Open + b.EvalCommissions(*order, candle.Open)
 			if b.BrokerAvailableCash < requiredCash {
 				b.Stderr.Fatalf("[%s]    --> %s - order failed - no cash, need $%v have $%v", candle.TimeStr(), order.String(), requiredCash, b.BrokerAvailableCash)
-				return true
+				continue
 			}
 
 		case OrderSell:
@@ -208,15 +234,18 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			Size:     orderQty,
 			AvgPrice: candle.Open,
 		}
+		order.AvgFilledPrice = candle.Open // <-- this is a bug. Need to calculate a weighted average
 
-		// Update the available cahs: use money to buy, add money if we are selling
+		// Update the available cash: use money to buy, add money if we are selling
 		if orderQty > 0 { // || // BUY  -> use my cash
 			// haveInPortfolio && orderQty < 0 { // CLOSE
 			b.BrokerAvailableCash -= cashChange // cashChange is <0 is I'm selling
+			b.Signals.Append(candle, "trades_buy", order.AvgFilledPrice)
 		}
 
 		if orderQty < 0 {
 			b.BrokerAvailableCash += cashChange
+			b.Signals.Append(candle, "trades_sell", order.AvgFilledPrice)
 		}
 
 		// Update the Portfolio
@@ -227,24 +256,39 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			newPosition.AvgPrice = (float64(oldPosition.Size)*oldPosition.AvgPrice + float64(orderQty)*candle.Open) / float64(oldPosition.Size+orderQty)
 		}
 
+		// pl := 0.0
 		if newPosition.Size == 0 {
+			// the position has been closed; I can calculate the p&l for this trade
+			// as the difference from the closing order and the position (for long)
+			// pl = float64(order.Size)*order.AvgFilledPrice - float64(oldPosition.Size)*oldPosition.AvgPrice
 			delete(b.Portfolio, order.Symbol)
+
+			// // short order are on the opposite
+			// if oldPosition.Size < 0 {
+			// 	pl = -1*float64(oldPosition.Size)*oldPosition.AvgPrice - float64(order.Size)*order.AvgFilledPrice
+			// }
+
 		} else {
 			b.Portfolio[order.Symbol] = newPosition
 		}
 
+		// A trade is a position that has been opened and close;
+		// try to get the final PL for the current trad
+		// b.Signals.Append(candle, "trades_pl", pl)
+
 		// Update the order status
 		order.SizeFilled += int64(math.Abs(float64(orderQty)))
-		order.AvgFilledPrice = candle.Open // <-- this is a bug. Need to calculate a weighted average
 		if order.SizeFilled == order.Size {
 			order.Status = OrderStatusFullFilled
 		}
 
-		b.Stdout.Printf("[%s]    --> %s: filled %v@%v ", candle.TimeStr(), order.String(), orderQty, candle.Open)
+		if b.Stdout != nil {
+			b.Stdout.Printf("[%s]    --> %s: filled %v@%v ", candle.TimeStr(), order.String(), orderQty, candle.Open)
+		}
+
 		orderPlaced = append(orderPlaced, *order)
 
-		return true
-	})
+	}
 
 	return orderPlaced
 }
@@ -266,6 +310,7 @@ func (b *BacktestBrocker) GetPositions() []Position {
 	return openPositions
 }
 
+// ClosePosition @deprecated
 func (b *BacktestBrocker) ClosePosition(position Position) error {
 	var orderType OrderType
 
@@ -276,7 +321,7 @@ func (b *BacktestBrocker) ClosePosition(position Position) error {
 		orderType = OrderBuy
 	}
 
-	b.SubmitOrder(Order{
+	b.SubmitOrder(Candle{}, Order{
 		Symbol: position.Symbol,
 		Size:   int64(math.Abs(float64(position.Size))),
 		Type:   orderType,

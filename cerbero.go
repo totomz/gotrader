@@ -21,18 +21,6 @@ type ExecutionResult struct {
 	FinalCash       float64       `json:"final_cash"`
 }
 
-const (
-	SIGNAL_CASH        = "cash"
-	SIGNAL_TRADES_BUY  = "trades_buy"
-	SIGNAL_TRADES_SELL = "trades_sell"
-	SIGNAL_CANDLES     = "candles"
-)
-
-var ORDERTYPE_TO_SIGNALE = map[OrderType]string{
-	OrderBuy:  SIGNAL_TRADES_BUY,
-	OrderSell: SIGNAL_TRADES_SELL,
-}
-
 // TimeAggregation aggregate the candles from a channel and write the output in a separate channel
 type TimeAggregation func(<-chan Candle) <-chan AggregatedCandle
 
@@ -58,22 +46,34 @@ func AggregateBySeconds(sec int) TimeAggregation {
 
 		go func() {
 			defer close(outchan)
-			i := 0
-			aggregated := Candle{}
+
+			aggregatedCandle := map[Symbol]Candle{}
+			aggregatedCounter := map[Symbol]int{}
 			for candle := range inputCandleChan {
+
+				aggregatedCount := aggregatedCounter[candle.Symbol]
+				aggregated, existsCandle := aggregatedCandle[candle.Symbol]
+				if !existsCandle {
+					aggregated = Candle{}
+					aggregatedCandle[candle.Symbol] = aggregated
+				}
+
 				aggregated = mergeCandles(aggregated, candle)
 
 				outchan <- AggregatedCandle{
 					Original:         candle,
 					AggregatedCandle: aggregated,
-					IsAggregated:     i == sec,
+					IsAggregated:     aggregatedCount == sec,
 				}
 
-				if i == sec {
+				if aggregatedCount == sec {
 					aggregated = Candle{}
-					i = 0
+					aggregatedCount = 0
 				}
-				i = i + 1
+				aggregatedCount += 1
+
+				aggregatedCounter[candle.Symbol] = aggregatedCount
+				aggregatedCandle[candle.Symbol] = aggregated
 			}
 		}()
 		return outchan
@@ -118,17 +118,19 @@ type Cerbero struct {
 	TimeAggregationFunc TimeAggregation
 	Stdout              *log.Logger
 	Stderr              *log.Logger
-
-	signals Signal
+	Signals             Signal
 }
 
 func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 
-	if cerbero.Stdout == nil {
-		cerbero.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
-	}
 	if cerbero.Stderr == nil {
-		cerbero.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
+		cerbero.Stderr = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
+	}
+
+	if cerbero.Signals == nil {
+		cerbero.Signals = &MemorySignals{
+			Metrics: map[string]*TimeSerie{},
+		}
 	}
 
 	var wg sync.WaitGroup
@@ -138,7 +140,6 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	}
 
 	// Set default values
-	cerbero.signals = Signal{values: map[string]interface{}{}}
 	if cerbero.TimeAggregationFunc == nil {
 		cerbero.TimeAggregationFunc = NoAggregation
 	}
@@ -161,7 +162,10 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			cerbero.Stderr.Fatalf("Error consuming base feed -- %v", err)
 			return
 		}
-		cerbero.Stdout.Println("started base feed consumer routine")
+		if cerbero.Stdout != nil {
+			cerbero.Stdout.Println("started base feed consumer routine")
+		}
+
 		for tick := range basefeed {
 			baseFeedCloneForTimeAggregation <- tick
 		}
@@ -173,16 +177,25 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	go func() {
 		defer wg.Done()
 		var candles []Candle
-		cerbero.Stdout.Println("started strategy routine")
+		if cerbero.Stdout != nil {
+			cerbero.Stdout.Println("started strategy routine")
+		}
 
 		for aggregated := range aggregatedFeed {
 
 			// notify the broker that it must process all the orders in the queue
 			// run it synchronously with the datafeed for backtest.
 			// Realtime broker may use this as a "pre-strategy" entry point
-			ordersExecuted := cerbero.Broker.ProcessOrders(aggregated.Original)
-			for _, order := range ordersExecuted {
-				cerbero.signals.AppendFloat(aggregated.AggregatedCandle, ORDERTYPE_TO_SIGNALE[order.Type], order.AvgFilledPrice)
+			_ = cerbero.Broker.ProcessOrders(aggregated.Original)
+
+			v := cerbero.Broker.AvailableCash()
+			pos := cerbero.Broker.GetPositions()
+
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "cash", v)
+			for _, p := range pos {
+				c := Candle{Symbol: aggregated.Original.Symbol, Time: aggregated.Original.Time}
+				cerbero.Signals.Append(c, "position", float64(p.Size))
+				cerbero.Signals.Append(aggregated.AggregatedCandle, "broker", float64(p.Size)*p.AvgPrice)
 			}
 
 			// Only orders are processed with the raw candles
@@ -192,12 +205,16 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 
 			// Once orders are processed, we should update the available cash,
 			// the broker state and all the fisgnals
-			v := cerbero.Broker.AvailableCash()
-			cerbero.signals.AppendFloat(aggregated.AggregatedCandle, SIGNAL_CASH, v)
-			cerbero.signals.AppendCandle(aggregated.AggregatedCandle, SIGNAL_CANDLES, aggregated.AggregatedCandle)
+
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_open", aggregated.AggregatedCandle.Open)
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_high", aggregated.AggregatedCandle.High)
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_low", aggregated.AggregatedCandle.Low)
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_close", aggregated.AggregatedCandle.Close)
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_volume", float64(aggregated.AggregatedCandle.Volume))
 
 			candles = append(candles, aggregated.AggregatedCandle)
 			cerbero.Strategy.Eval(candles)
+			cerbero.Signals.Flush()
 
 		}
 	}()
@@ -210,10 +227,6 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	stats.FinalCash = cerbero.Broker.AvailableCash()
 	stats.PL = (stats.FinalCash/stats.InitialCash - 1) * 100
 	return stats, nil
-}
-
-func (cerbero *Cerbero) Signals() *Signal {
-	return &cerbero.signals
 }
 
 func Open(candles []Candle) []float64 {

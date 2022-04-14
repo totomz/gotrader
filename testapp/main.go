@@ -17,6 +17,9 @@ func main() {
 	sday := time.Date(2021, 1, 11, 0, 0, 0, 0, time.Local)
 
 	service := gotrader.Cerbero{
+
+		Signals: &gotrader.MemorySignals{Metrics: map[string]*gotrader.TimeSerie{}},
+
 		Broker: &gotrader.BacktestBrocker{
 			InitialCashUSD: 30000,
 		},

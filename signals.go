@@ -2,15 +2,89 @@ package gotrader
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
+	"strings"
+	"time"
 )
 
 // Signal is a convenient way to collect custom time-series
-type Signal struct {
-	values map[string]interface{}
+type Signal interface {
+	// Append the value as last element of this serie
+	Append(candle Candle, name string, value float64)
+
+	// Get the i-th element back  (Get(0) return the last element, Get(1) return the last - 1 element)
+	Get(candle Candle, name string, i int) (float64, error)
+
+	// Flush the metrics to the underlying system
+	// This method is called before a new candle is processed by cerbero
+	Flush()
+
+	GetMetrics() map[string]*TimeSerie
 }
 
-type TimeSerieCandle struct {
+type NoOpSignals struct {
+}
+
+type MemorySignals struct {
+	Metrics map[string]*TimeSerie
+}
+
+// Append a metric to a given signal.
+func (s *MemorySignals) Append(candle Candle, name string, value float64) {
+
+	if s.Metrics == nil {
+		s.Metrics = map[string]*TimeSerie{}
+	}
+
+	key := string(candle.Symbol) + "." + name
+	_, exists := s.Metrics[key]
+	if !exists {
+		s.Metrics[key] = &TimeSerie{
+			X: []time.Time{},
+			Y: []float64{},
+		}
+	}
+
+	s.Metrics[key].Append(candle, value)
+
+}
+
+func (s *MemorySignals) Flush() {
+
+}
+
+func (s *MemorySignals) Get(candle Candle, name string, i int) (float64, error) {
+	ts, found := s.Metrics[string(candle.Symbol)+"."+name]
+	if !found {
+		return 0, errors.New("signal not found")
+	}
+
+	index := len(ts.Y) - 1 - i
+	if index < 0 {
+		return 0, errors.New("index too old")
+	}
+
+	return ts.Y[index], nil
+}
+
+func (s *MemorySignals) GetMetrics() map[string]*TimeSerie {
+	return s.Metrics
+}
+
+type TimeSerie struct {
+	X []time.Time `json:"x"`
+	Y []float64   `json:"y"`
+}
+
+// Append an element to the end of this ts
+func (ts *TimeSerie) Append(candle Candle, value float64) {
+	ts.X = append(ts.X, candle.Time)
+	ts.Y = append(ts.Y, value)
+}
+
+type PlotlyTimeSerieCandle struct {
 	X      []int64   `json:"x"`
 	Open   []float64 `json:"open"`
 	High   []float64 `json:"high"`
@@ -19,102 +93,90 @@ type TimeSerieCandle struct {
 	Volume []int64   `json:"volume"`
 }
 
-type TimeSerieFloat struct {
+type PlotlyTimeSerieFloat struct {
 	X []int64   `json:"x"`
 	Y []float64 `json:"y"`
 }
 
-// AppendCandle append a new value to a time-series. The reference time is taken from Candle time.
-// It is not possible to append values in the past; this function is append-only
-func (signal *Signal) AppendCandle(candle Candle, key string, value Candle) {
-	// Init values before appending
-	if signal.values == nil {
-		signal.values = map[string]interface{}{}
+func SignalsToPlotly(symbol string, signal Signal) []byte {
+
+	data := struct {
+		values map[string]interface{}
+	}{
+		values: map[string]interface{}{},
 	}
 
-	_, found := signal.values[key]
-	if !found {
-		signal.values[key] = TimeSerieCandle{
-			// X:      []string{candle.Time.Format("2006-01-02 15:04:05")},
-			X:      []int64{candle.Time.Unix() * 1000},
-			Open:   []float64{value.Open},
-			High:   []float64{value.High},
-			Close:  []float64{value.Close},
-			Low:    []float64{value.Low},
-			Volume: []int64{value.Volume},
-		}
-		return
+	candles := PlotlyTimeSerieCandle{
+		X:      []int64{},
+		Open:   []float64{},
+		High:   []float64{},
+		Close:  []float64{},
+		Low:    []float64{},
+		Volume: []int64{},
 	}
 
-	cval := signal.values[key].(TimeSerieCandle)
-	// cval.X = append(cval.X, candle.Time.Format("2006-01-02 15:04:05"))
-	cval.X = append(cval.X, candle.Time.Unix()*1000)
-	cval.Open = append(cval.Open, value.Open)
-	cval.High = append(cval.High, value.High)
-	cval.Close = append(cval.Close, value.Close)
-	cval.Low = append(cval.Open, value.Low)
-	cval.Volume = append(cval.Volume, value.Volume)
-	signal.values[key] = cval
-}
+	for k, values := range signal.GetMetrics() {
 
-func (signal *Signal) AppendNil(candle Candle, key string, value float64) {
-
-}
-
-func (signal *Signal) AppendFloat(candle Candle, key string, value float64) {
-
-	// Init values before appending
-	if signal.values == nil {
-		signal.values = map[string]interface{}{}
-	}
-
-	_, found := signal.values[key]
-	if !found {
-		signal.values[key] = TimeSerieFloat{
-			X: []int64{candle.Time.Unix() * 1000},
-			Y: []float64{value},
-		}
-		return
-	}
-
-	cval := signal.values[key].(TimeSerieFloat)
-	cval.X = append(cval.X, candle.Time.Unix()*1000)
-	cval.Y = append(cval.Y, value)
-	signal.values[key] = cval
-}
-
-func (signal *Signal) Keys() []string {
-	var keys []string
-	for k, _ := range signal.values {
-		keys = append(keys, k)
-	}
-
-	return keys
-}
-
-func (signal *Signal) Get(key string) (interface{}, bool) {
-	vals, found := signal.values[key]
-	return vals, found
-}
-
-func (signal *Signal) ToJson() ([]byte, error) {
-
-	// Append the default signals
-	requiredSignals := []string{"cash", "trades_buy", "trades_sell", "candles"}
-	for _, k := range requiredSignals {
-		_, has := signal.values[k]
-		if !has {
-			signal.values[k] = TimeSerieFloat{
+		if k == fmt.Sprintf("%s.candle_open", symbol) {
+			for i, inst := range values.X {
+				candles.X = append(candles.X, inst.UnixMilli())
+				candles.Open = append(candles.Open, values.Y[i])
+			}
+		} else if k == fmt.Sprintf("%s.candle_high", symbol) {
+			for _, v := range values.Y {
+				candles.High = append(candles.High, v)
+			}
+		} else if k == fmt.Sprintf("%s.candle_close", symbol) {
+			for _, v := range values.Y {
+				candles.Close = append(candles.Close, v)
+			}
+		} else if k == fmt.Sprintf("%s.candle_low", symbol) {
+			for _, v := range values.Y {
+				candles.Low = append(candles.Low, v)
+			}
+		} else if k == fmt.Sprintf("%s.candle_volume", symbol) {
+			for _, v := range values.Y {
+				candles.Volume = append(candles.Volume, int64(v))
+			}
+		} else {
+			name := strings.Split(k, ".")[1]
+			ts := PlotlyTimeSerieFloat{
 				X: []int64{},
 				Y: []float64{},
 			}
+
+			for i, inst := range values.X {
+				ts.X = append(ts.X, inst.UnixMilli())
+				ts.Y = append(ts.Y, values.Y[i])
+			}
+
+			data.values[name] = ts
+		}
+
+		data.values["candles"] = candles
+
+	}
+
+	_, existsBuy := data.values["trades_buy"]
+	if !existsBuy {
+		data.values["trades_buy"] = PlotlyTimeSerieFloat{
+			X: []int64{},
+			Y: []float64{},
 		}
 	}
 
-	data, err := json.Marshal(signal.values)
+	_, existsSell := data.values["trades_sell"]
+	if !existsSell {
+		data.values["trades_sell"] = PlotlyTimeSerieFloat{
+			X: []int64{},
+			Y: []float64{},
+		}
+	}
+
+	res, err := json.Marshal(data.values)
 	if err != nil {
 		log.Printf("[ERROR] error exporting signals: %v ", err)
-		return []byte{}, err
+		return []byte{}
 	}
 	/*
 		data := {
@@ -130,15 +192,15 @@ func (signal *Signal) ToJson() ([]byte, error) {
 		}
 	*/
 
-	return data, nil
+	return res
 }
 
-func (signal *Signal) Merge(toMerge *Signal) {
-	if toMerge == nil {
-		return
-	}
+func SignalsToGrafana(signal Signal) []byte {
 
-	for k, v := range toMerge.values {
-		signal.values[k] = v
+	m := signal.GetMetrics()
+	b, err := json.Marshal(m)
+	if err != nil {
+		panic(err)
 	}
+	return b
 }

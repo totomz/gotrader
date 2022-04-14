@@ -470,7 +470,7 @@ func (w *WrapperChannel) MarketRule(marketRuleID int64, priceIncrements []ibapi.
 }
 
 func (w *WrapperChannel) RealtimeBar(reqID int64, t int64, open float64, high float64, low float64, close float64, volume int64, wap float64, count int64) {
-	w.stdout.Printf("<RealtimeBar> %v %v ", time.Unix(t, 0).String(), low)
+	// w.stdout.Printf("<RealtimeBar> %v %v ", time.Unix(t, 0).String(), low)
 	channel, _ := w.responseData.Load(reqID)
 	bar := ibapi.RealTimeBar{
 		Time:   t,
