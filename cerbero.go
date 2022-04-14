@@ -188,6 +188,16 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			// Realtime broker may use this as a "pre-strategy" entry point
 			_ = cerbero.Broker.ProcessOrders(aggregated.Original)
 
+			v := cerbero.Broker.AvailableCash()
+			pos := cerbero.Broker.GetPositions()
+
+			cerbero.Signals.Append(aggregated.AggregatedCandle, "cash", v)
+			for _, p := range pos {
+				c := Candle{Symbol: aggregated.Original.Symbol, Time: aggregated.Original.Time}
+				cerbero.Signals.Append(c, "position", float64(p.Size))
+				cerbero.Signals.Append(aggregated.AggregatedCandle, "broker", float64(p.Size)*p.AvgPrice)
+			}
+
 			// Only orders are processed with the raw candles
 			if !aggregated.IsAggregated {
 				continue
@@ -195,8 +205,7 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 
 			// Once orders are processed, we should update the available cash,
 			// the broker state and all the fisgnals
-			v := cerbero.Broker.AvailableCash()
-			cerbero.Signals.Append(aggregated.AggregatedCandle, "cash", v)
+
 			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_open", aggregated.AggregatedCandle.Open)
 			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_high", aggregated.AggregatedCandle.High)
 			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_low", aggregated.AggregatedCandle.Low)

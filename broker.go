@@ -256,28 +256,25 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			newPosition.AvgPrice = (float64(oldPosition.Size)*oldPosition.AvgPrice + float64(orderQty)*candle.Open) / float64(oldPosition.Size+orderQty)
 		}
 
-		pl := 0.0
+		// pl := 0.0
 		if newPosition.Size == 0 {
 			// the position has been closed; I can calculate the p&l for this trade
 			// as the difference from the closing order and the position (for long)
-			pl = float64(order.Size)*order.AvgFilledPrice - float64(oldPosition.Size)*oldPosition.AvgPrice
+			// pl = float64(order.Size)*order.AvgFilledPrice - float64(oldPosition.Size)*oldPosition.AvgPrice
 			delete(b.Portfolio, order.Symbol)
 
-			// short order are on the opposite
-			if oldPosition.Size < 0 {
-				pl = -1*float64(oldPosition.Size)*oldPosition.AvgPrice - float64(order.Size)*order.AvgFilledPrice
-			}
+			// // short order are on the opposite
+			// if oldPosition.Size < 0 {
+			// 	pl = -1*float64(oldPosition.Size)*oldPosition.AvgPrice - float64(order.Size)*order.AvgFilledPrice
+			// }
 
 		} else {
 			b.Portfolio[order.Symbol] = newPosition
-			s := float64(newPosition.Size)
-			d := math.Abs(s)
-			b.Signals.Append(candle, "trades_leg", s/d)
 		}
 
 		// A trade is a position that has been opened and close;
 		// try to get the final PL for the current trad
-		b.Signals.Append(candle, "trades_pl", pl)
+		// b.Signals.Append(candle, "trades_pl", pl)
 
 		// Update the order status
 		order.SizeFilled += int64(math.Abs(float64(orderQty)))

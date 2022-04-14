@@ -28,6 +28,33 @@ func NewAlpacaBroker(config AlpacaBroker, apiKey, apiSecret, baseUrl string) *Al
 	return &config
 }
 
+func (ab *AlpacaBroker) SignalsPortfolioStatus() {
+	positions, err := ab.client.ListPositions()
+	if err != nil {
+		ab.Stderr.Printf("polling can't list positions: %v", err)
+	}
+
+	totalAssets := ab.AvailableCash()
+
+	for _, p := range positions {
+		c := gotrader.Candle{
+			Symbol: gotrader.Symbol(p.Symbol),
+			Time:   time.Now(),
+		}
+		pl := p.UnrealizedPL.InexactFloat64()
+		totalAssets += pl
+		ab.Signals.Append(c, "alpaca.stock.pl", pl)
+		ab.Signals.Append(c, "alpaca.stock.qty", p.Qty.InexactFloat64())
+	}
+
+	// signals sucks, why am I passing a Candle?
+	c := gotrader.Candle{
+		Symbol: "AMD",
+		Time:   time.Now(),
+	}
+	ab.Signals.Append(c, "alpaca.totalAssets", totalAssets)
+}
+
 func (ab *AlpacaBroker) Shutdown() {
 	// do nothing
 }

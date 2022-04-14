@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"time"
 )
 
@@ -170,6 +171,7 @@ func (s *Service) Search(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	sort.Strings(results)
 	j, _ := json.Marshal(results)
 	w.WriteHeader(200)
 	io.WriteString(w, string(j))
