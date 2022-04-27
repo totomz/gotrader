@@ -12,7 +12,6 @@ func TestBacktestBrocker_TestOrders(t *testing.T) {
 	t.Parallel()
 
 	broker := BacktestBrocker{
-		InitialCashUSD:      30000,
 		BrokerAvailableCash: 30000,
 		OrderMap:            map[string]*Order{},
 		Portfolio:           map[Symbol]Position{},

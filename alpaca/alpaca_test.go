@@ -125,7 +125,7 @@ func TestOrderManagement(t *testing.T) {
 
 func TestInvertPosition(t *testing.T) {
 
-	// t.Skip("TODO Manual test")
+	t.Skip("TODO Manual test")
 	_, err := alpa.SubmitOrder(c, gotrader.Order{
 		Size:   3,
 		Symbol: "TSLA",

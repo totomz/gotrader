@@ -20,9 +20,7 @@ func main() {
 
 		Signals: &gotrader.MemorySignals{Metrics: map[string]*gotrader.TimeSerie{}},
 
-		Broker: &gotrader.BacktestBrocker{
-			InitialCashUSD: 30000,
-		},
+		Broker: &gotrader.BacktestBrocker{},
 
 		Strategy: &gotrader.SimplePsarStrategy{
 			Symbol: symbl,

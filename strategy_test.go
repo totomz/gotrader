@@ -66,7 +66,6 @@ func TestSignalsStrategy(t *testing.T) {
 	service := Cerbero{
 		Signals: &signals,
 		Broker: &BacktestBrocker{
-			InitialCashUSD:      30000,
 			BrokerAvailableCash: 30000,
 			OrderMap:            map[string]*Order{},
 			Portfolio:           map[Symbol]Position{},
@@ -122,7 +121,6 @@ func TestShortOrders(t *testing.T) {
 	service := Cerbero{
 		Signals: signals,
 		Broker: &BacktestBrocker{
-			InitialCashUSD:      30000,
 			BrokerAvailableCash: 30000,
 			OrderMap:            map[string]*Order{},
 			Portfolio:           map[Symbol]Position{},

@@ -105,15 +105,13 @@ var Nocommissions = func(order Order, price float64) float64 { return 0 }
 
 // BacktestBrocker is the default broker to back-test a strategy
 type BacktestBrocker struct {
-	InitialCashUSD      float64
 	BrokerAvailableCash float64
-	// OrderMap            sync.Map
-	OrderMap        map[string]*Order
-	Portfolio       map[Symbol]Position
-	EvalCommissions EvaluateCommissions
-	Stdout          *log.Logger
-	Stderr          *log.Logger
-	Signals         Signal
+	OrderMap            map[string]*Order
+	Portfolio           map[Symbol]Position
+	EvalCommissions     EvaluateCommissions
+	Stdout              *log.Logger
+	Stderr              *log.Logger
+	Signals             Signal
 }
 
 func (b *BacktestBrocker) SubmitOrder(_ Candle, order Order) (string, error) {

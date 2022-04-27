@@ -142,7 +142,6 @@ func TestStrategyReadsCandles(t *testing.T) {
 			Sday:       testSday,
 		},
 		Broker: &BacktestBrocker{
-			InitialCashUSD:      30000,
 			BrokerAvailableCash: 30000,
 			OrderMap:            map[string]*Order{},
 			Portfolio:           map[Symbol]Position{},
@@ -240,7 +239,6 @@ func TestOrderExecutionAfter1sec(t *testing.T) {
 			Sday:       testSday,
 		},
 		Broker: &BacktestBrocker{
-			InitialCashUSD:      1000,
 			BrokerAvailableCash: 1000,
 			OrderMap:            map[string]*Order{},
 			Portfolio:           map[Symbol]Position{},
