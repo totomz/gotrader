@@ -21,9 +21,9 @@ var (
 	alpa = NewAlpacaBroker(AlpacaBroker{
 		Stdout: stdout,
 		Stderr: stderr,
-		Signals: &gotrader.MemorySignals{
-			Metrics: map[string]*gotrader.TimeSerie{},
-		},
+		// Signals: &gotrader.MemorySignals{
+		// 	Metrics: map[string]*gotrader.TimeSerie{},
+		// },
 	}, apiKey, apiSecret, baseUrl)
 )
 
