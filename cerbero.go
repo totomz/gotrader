@@ -1,7 +1,7 @@
 package gotrader
 
 import (
-	"go.opencensus.io/stats"
+	"go.opencensus.io/stats/view"
 	"log"
 	"os"
 	"sync"
@@ -119,6 +119,7 @@ type Cerbero struct {
 	TimeAggregationFunc TimeAggregation
 	Stdout              *log.Logger
 	Stderr              *log.Logger
+	registeredViews     []*view.View
 	// Signals             Signal
 }
 
@@ -192,9 +193,7 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			v := cerbero.Broker.AvailableCash()
 			// pos := cerbero.Broker.GetPositions()
 
-			stats.Record(ctx,
-				MCash.M(v),
-			)
+			MCash.Record(ctx, v)
 
 			// // cerbero.Signals.Append(aggregated.AggregatedCandle, "cash", v)
 			// for _, p := range pos {
@@ -210,13 +209,11 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 
 			// Once orders are processed, we should update the available cash,
 			// the broker state and all the fisgnals
-			stats.Record(ctx,
-				MCandleOpen.M(aggregated.AggregatedCandle.Open),
-				MCandleHigh.M(aggregated.AggregatedCandle.High),
-				MCandleClose.M(aggregated.AggregatedCandle.Close),
-				MCandleLow.M(aggregated.AggregatedCandle.Low),
-				MCandleLow.M(aggregated.AggregatedCandle.Low),
-			)
+			MCandleOpen.Record(ctx, aggregated.AggregatedCandle.Open)
+			MCandleHigh.Record(ctx, aggregated.AggregatedCandle.High)
+			MCandleClose.Record(ctx, aggregated.AggregatedCandle.Close)
+			MCandleLow.Record(ctx, aggregated.AggregatedCandle.Low)
+			MCandleLow.Record(ctx, aggregated.AggregatedCandle.Low)
 			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_open", aggregated.AggregatedCandle.Open)
 			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_high", aggregated.AggregatedCandle.High)
 			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_low", aggregated.AggregatedCandle.Low)
@@ -225,7 +222,6 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 
 			candles = append(candles, aggregated.AggregatedCandle)
 			cerbero.Strategy.Eval(candles)
-			// cerbero.Signals.Flush()
 
 		}
 	}()

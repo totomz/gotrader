@@ -3,7 +3,6 @@ package gotrader
 import (
 	"errors"
 	"fmt"
-	"go.opencensus.io/stats"
 	"log"
 	"math"
 	"math/rand"
@@ -239,12 +238,12 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 		if orderQty > 0 { // || // BUY  -> use my cash
 			// haveInPortfolio && orderQty < 0 { // CLOSE
 			b.BrokerAvailableCash -= cashChange // cashChange is <0 is I'm selling
-			stats.Record(ctx, MTradesBuy.M(order.AvgFilledPrice))
+			MTradesBuy.Record(ctx, order.AvgFilledPrice)
 		}
 
 		if orderQty < 0 {
 			b.BrokerAvailableCash += cashChange
-			stats.Record(ctx, MTradesSell.M(order.AvgFilledPrice))
+			MTradesSell.Record(ctx, order.AvgFilledPrice)
 		}
 
 		// Update the Portfolio

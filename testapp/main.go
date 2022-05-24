@@ -18,20 +18,15 @@ func main() {
 
 	service := gotrader.Cerbero{
 
-		Signals: &gotrader.MemorySignals{Metrics: map[string]*gotrader.TimeSerie{}},
-
-		Broker: &gotrader.BacktestBrocker{},
-
+		Broker:              &gotrader.BacktestBrocker{},
+		TimeAggregationFunc: gotrader.NoAggregation,
 		Strategy: &gotrader.SimplePsarStrategy{
 			Symbol: symbl,
 		},
-
 		DataFeed: &gotrader.IBZippedCSV{
 			Symbol: symbl,
 			Sday:   sday,
 		},
-
-		TimeAggregationFunc: gotrader.NoAggregation,
 	}
 
 	println(service.TimeAggregationFunc)
