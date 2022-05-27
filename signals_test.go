@@ -1,64 +1,102 @@
 package gotrader
 
 import (
+	"context"
+	"go.opencensus.io/stats/view"
 	"testing"
 	"time"
 )
 
-func TestSignalGet(t *testing.T) {
+type testExporter struct {
+	hasMetric         bool
+	expectMetricName  string
+	expectMetricValue float64
+}
 
-	signals := MemorySignals{Metrics: map[string]*TimeSerie{}}
+func (ce *testExporter) hasMetrics() bool {
+	return ce.hasMetric
+}
 
-	c := Candle{
-		Time:   time.Time{},
-		Symbol: "SYMBL",
+func (ce *testExporter) ExportView(vd *view.Data) {
+	if vd.View.Name != ce.expectMetricName {
+		return
 	}
-	signals.Append(c, "test", 1.0)
-	signals.Append(c, "test", 2.0)
-	signals.Append(c, "test", 3.0)
-	signals.Append(c, "test", 4.0)
-	signals.Append(c, "test", 5.0)
-	signals.Append(c, "test", 6.0)
-	signals.Append(c, "test", 7.0)
-	signals.Append(c, "test", 8.0)
-
-	metrics := signals.GetMetrics()
-	n, exists := metrics["SYMBL.test"]
-	if !exists {
-		t.Error("signal 'SYMBL.test' not found - note that the symbol is prependend to the metric!")
+	ce.hasMetric = true
+	for _, row := range vd.Rows {
+		d := row.Data.(*view.LastValueData)
+		if d.Value == ce.expectMetricValue {
+			ce.hasMetric = true
+			break
+		}
 	}
+}
 
-	if len(n.X) != len(n.Y) {
-		t.Errorf("len(n.X)[%v] != len(n.Y)[%v]", len(n.X), len(n.Y))
-	}
+func TestSimpleMetric(t *testing.T) {
+	AMetric := NewMetricWithDefaultViews("test/ametric")
 
-	if len(n.X) != 8 {
-		t.Error("len(n.X) != 7")
-	}
-
-	_, shouldErr := signals.Get(c, "blablah", 152)
-	if shouldErr == nil {
-		t.Errorf("signal blablah should not exts")
+	z := &testExporter{
+		expectMetricName:  AMetric.Name,
+		expectMetricValue: 5.5,
 	}
 
-	last, noErr := signals.Get(c, "test", 0)
-	if noErr != nil || last != 8.0 {
-		t.Errorf("expected last, got %f / an error: %v", last, noErr)
+	view.RegisterExporter(z)
+	view.SetReportingPeriod(100 * time.Millisecond)
+
+	// Metrics without a candle are ignored by gotrader
+	// but should work as opencensus measures/views
+	ctxNoCandle := context.Background()
+	AMetric.Record(ctxNoCandle, 5.5)
+
+	time.Sleep(500 * time.Millisecond)
+
+	if !z.hasMetrics() {
+		t.Errorf("opencensus exporter didn't get the metric")
+	}
+}
+
+func TestMetricCandles(t *testing.T) {
+	AMetric := NewMetricWithDefaultViews("test/ametric2")
+	t0 := time.Now()
+
+	AMetric.Record(GetNewContextFromCandle(Candle{Symbol: "ZYO", Time: t0}), 1) // i := -3 (+3)
+	t0 = t0.Add(1 * time.Second)
+	AMetric.Record(GetNewContextFromCandle(Candle{Symbol: "ZYO", Time: t0}), 2) // i := -1 (+2)
+	t0 = t0.Add(1 * time.Second)
+	AMetric.Record(GetNewContextFromCandle(Candle{Symbol: "ZYO", Time: t0}), 3) // i := -1 (+1)
+	t0 = t0.Add(1 * time.Second)
+	AMetric.Record(GetNewContextFromCandle(Candle{Symbol: "ZYO", Time: t0}), 4) // i := 0
+
+	// Metrics are bounded to a symbol; and there are no vlaues or this symbol
+	_, err := AMetric.Get(GetNewContextFromCandle(Candle{Symbol: "XXX", Time: t0}), 1)
+	if err == nil || err != ErrMetricNotFound {
+		t.Errorf("expected an ErrMetricNotFound")
 	}
 
-	last, noErr = signals.Get(c, "test", 1)
-	if noErr != nil || last != 7.0 {
-		t.Errorf("expected last, got %f / an error: %v", last, noErr)
+	zyoCtx := GetNewContextFromCandle(Candle{Symbol: "ZYO", Time: t0})
+	val4, err4 := AMetric.Get(zyoCtx, 0)
+	if err4 != nil {
+		t.Error(err4)
 	}
 
-	five, noErr := signals.Get(c, "test", 3)
-	if noErr != nil || five != 5.0 {
-		t.Errorf("expected last, got %f / an error: %v", five, noErr)
+	if val4 != 4 {
+		t.Errorf("expected 4, got %f", val4)
 	}
 
-	a, tooOld := signals.Get(c, "test", 357)
-	if tooOld == nil {
-		t.Errorf("expected a \"too old\" error, got a result: %f", a)
+	val1, err1 := AMetric.Get(zyoCtx, 3)
+	if err1 != nil {
+		t.Error(err1)
 	}
 
+	if val1 != 1 {
+		t.Errorf("expected 1, got %f", val4)
+	}
+
+	valN, errN := AMetric.Get(zyoCtx, -3)
+	if errN != nil {
+		t.Error(errN)
+	}
+
+	if valN != 1 {
+		t.Errorf("expected 1, got %f", valN)
+	}
 }

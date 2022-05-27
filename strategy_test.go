@@ -2,27 +2,35 @@ package gotrader
 
 import (
 	"github.com/cinar/indicator"
+	"go.opencensus.io/stats"
+	"go.opencensus.io/stats/view"
+	"go.opencensus.io/tag"
 	"testing"
 	"time"
 )
 
 // Eval evaluate the strategy. candles[0] is the latest, candles[1] is the latest - 1, and so on
 type MockStrategy struct {
-	signals     *MemorySignals
 	broker      Broker
 	EvalHandler func(candles []Candle, s *MockStrategy)
 }
 
 func (s *MockStrategy) Initialize(cerbero *Cerbero) {
-	if s.signals == nil {
-		s.signals = &MemorySignals{Metrics: map[string]*TimeSerie{}}
-	}
 	s.broker = cerbero.Broker
 }
 
-func (s *MockStrategy) GetSignals() *Signal {
-	return nil
-}
+// A strategy can defines metrics and views
+var (
+	MTestPsar      = stats.Float64("test/psar", "", stats.UnitDimensionless)
+	MTestPSarTrend = stats.Float64("test/psar_trend", "", stats.UnitDimensionless)
+
+	TestMetric = NewMetricWithDefaultViews("psar2")
+
+	testViews = []*view.View{
+		{Measure: MTestPsar, Aggregation: view.LastValue(), TagKeys: []tag.Key{KeySymbol}},
+		{Measure: MTestPSarTrend, Aggregation: view.LastValue(), TagKeys: []tag.Key{KeySymbol}},
+	}
+)
 
 func (s *MockStrategy) Eval(candles []Candle) {
 
@@ -33,9 +41,12 @@ func (s *MockStrategy) Eval(candles []Candle) {
 
 	c := candles[len(candles)-1]
 	psar, trend := indicator.ParabolicSar(High(candles), Low(candles), Close(candles))
-	s.signals.Append(c, "psar", psar[len(psar)-1])
-	s.signals.Append(c, "psar_trend", float64(trend[len(trend)-1]))
+	ctx := GetNewContextFromCandle(c)
+	stats.Record(ctx, MTestPsar.M(psar[len(psar)-1]))
+	stats.Record(ctx, MTestPSarTrend.M(float64(trend[len(trend)-1])))
 
+	TestMetric.Record(ctx, psar[len(psar)-1])
+	TestMetric.Get(ctx, -3)
 	if c.Time.Equal(time.Date(2021, 1, 11, 17, 11, 30, 00, time.Local)) {
 		_, _ = s.broker.SubmitOrder(c, Order{
 			Size:   50,
@@ -59,21 +70,18 @@ func TestSignalsStrategy(t *testing.T) {
 	symbl := Symbol("FB")
 	sday := time.Date(2021, 1, 11, 0, 0, 0, 0, time.Local)
 
-	signals := MemorySignals{
-		Metrics: map[string]*TimeSerie{},
-	}
+	// Register the metric views
+	RegisterViews(testViews...)
 
 	service := Cerbero{
-		Signals: &signals,
+		// Signals: &signals,
 		Broker: &BacktestBrocker{
 			BrokerAvailableCash: 30000,
 			OrderMap:            map[string]*Order{},
 			Portfolio:           map[Symbol]Position{},
 			EvalCommissions:     Nocommissions,
 		},
-		Strategy: &MockStrategy{
-			signals: &signals,
-		},
+		Strategy: &MockStrategy{},
 		DataFeed: &IBZippedCSV{
 			DataFolder: testFolder,
 			Symbol:     symbl,
@@ -93,11 +101,11 @@ func TestShortOrders(t *testing.T) {
 
 	symbl := Symbol("FB")
 	sday := time.Date(2021, 1, 11, 0, 0, 0, 0, time.Local)
-	signals := &MemorySignals{Metrics: map[string]*TimeSerie{}}
+	// signals := &MemorySignals{Metrics: map[string]*TimeSerie{}}
 
 	// Open a short position and close  it
 	// Expected to make money
-	shortStrategy := MockStrategy{signals: signals, EvalHandler: func(candles []Candle, s *MockStrategy) {
+	shortStrategy := MockStrategy{EvalHandler: func(candles []Candle, s *MockStrategy) {
 		c := candles[len(candles)-1]
 		if c.Time.Equal(time.Date(2021, 1, 11, 17, 11, 30, 00, time.Local)) {
 			_, _ = s.broker.SubmitOrder(c, Order{
@@ -115,11 +123,9 @@ func TestShortOrders(t *testing.T) {
 			})
 		}
 
-		s.signals.Append(c, "ping", c.Open)
 	}}
 
 	service := Cerbero{
-		Signals: signals,
 		Broker: &BacktestBrocker{
 			BrokerAvailableCash: 30000,
 			OrderMap:            map[string]*Order{},

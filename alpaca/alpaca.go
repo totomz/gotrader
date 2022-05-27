@@ -1,20 +1,27 @@
 package alpacabroker
 
 import (
+	"context"
 	"fmt"
 	"github.com/alpacahq/alpaca-trade-api-go/v2/alpaca"
 	"github.com/shopspring/decimal"
 	"github.com/totomz/gotrader"
+	"go.opencensus.io/tag"
 	"log"
 	"time"
 )
 
 type AlpacaBroker struct {
-	Stdout  *log.Logger
-	Stderr  *log.Logger
-	Signals gotrader.Signal
-	client  alpaca.Client
+	Stdout *log.Logger
+	Stderr *log.Logger
+	client alpaca.Client
 }
+
+var (
+	MAlpacaPl     = gotrader.NewMetricWithDefaultViews("alpaca/stock/pl")
+	MAlpacaQty    = gotrader.NewMetricWithDefaultViews("alpaca/stock/qty")
+	MAlpacaAssets = gotrader.NewMetricWithDefaultViews("alpaca/total_assets")
+)
 
 func NewAlpacaBroker(config AlpacaBroker, apiKey, apiSecret, baseUrl string) *AlpacaBroker {
 
@@ -33,26 +40,20 @@ func (ab *AlpacaBroker) SignalsPortfolioStatus() {
 	if err != nil {
 		ab.Stderr.Printf("polling can't list positions: %v", err)
 	}
-
+	ctx := context.Background()
+	ctx, err = tag.New(ctx,
+		tag.Insert(gotrader.KeySymbol, "ZYO"),
+	)
 	totalAssets := ab.AvailableCash()
 
 	for _, p := range positions {
-		c := gotrader.Candle{
-			Symbol: gotrader.Symbol(p.Symbol),
-			Time:   time.Now(),
-		}
 		pl := p.UnrealizedPL.InexactFloat64()
 		totalAssets += pl
-		ab.Signals.Append(c, "alpaca.stock.pl", pl)
-		ab.Signals.Append(c, "alpaca.stock.qty", p.Qty.InexactFloat64())
+		MAlpacaPl.Record(ctx, pl)
+		MAlpacaQty.Record(ctx, p.Qty.InexactFloat64())
 	}
 
-	// signals sucks, why am I passing a Candle?
-	c := gotrader.Candle{
-		Symbol: "AMD",
-		Time:   time.Now(),
-	}
-	ab.Signals.Append(c, "alpaca.totalAssets", totalAssets)
+	MAlpacaAssets.Record(ctx, totalAssets)
 }
 
 func (ab *AlpacaBroker) Shutdown() {
@@ -115,8 +116,6 @@ func (ab *AlpacaBroker) SubmitOrder(candle gotrader.Candle, order gotrader.Order
 
 	// The order is submitted but we don't know yet the
 	// avgFlledPrice, neither if it has been fullfiled or not.
-	ab.Signals.Append(candle, fmt.Sprintf("trades_%s", side), candle.Close)
-	ab.Signals.Append(candle, "trades_size", sizeSide)
 
 	return placedOrder.ID, nil
 }

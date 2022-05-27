@@ -1,6 +1,7 @@
 package gotrader
 
 import (
+	"go.opencensus.io/stats/view"
 	"log"
 	"os"
 	"sync"
@@ -118,7 +119,8 @@ type Cerbero struct {
 	TimeAggregationFunc TimeAggregation
 	Stdout              *log.Logger
 	Stderr              *log.Logger
-	Signals             Signal
+	registeredViews     []*view.View
+	// Signals             Signal
 }
 
 func (cerbero *Cerbero) Run() (ExecutionResult, error) {
@@ -127,15 +129,15 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 		cerbero.Stderr = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
 	}
 
-	if cerbero.Signals == nil {
-		cerbero.Signals = &MemorySignals{
-			Metrics: map[string]*TimeSerie{},
-		}
-	}
+	// if cerbero.Signals == nil {
+	// 	cerbero.Signals = &MemorySignals{
+	// 		Metrics: map[string]*TimeSerie{},
+	// 	}
+	// }
 
 	var wg sync.WaitGroup
 	start := time.Now()
-	stats := ExecutionResult{
+	execStats := ExecutionResult{
 		InitialCash: cerbero.Broker.AvailableCash(),
 	}
 
@@ -182,21 +184,23 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 		}
 
 		for aggregated := range aggregatedFeed {
-
+			ctx := GetNewContextFromCandle(aggregated.AggregatedCandle)
 			// notify the broker that it must process all the orders in the queue
 			// run it synchronously with the datafeed for backtest.
 			// Realtime broker may use this as a "pre-strategy" entry point
 			_ = cerbero.Broker.ProcessOrders(aggregated.Original)
 
 			v := cerbero.Broker.AvailableCash()
-			pos := cerbero.Broker.GetPositions()
+			// pos := cerbero.Broker.GetPositions()
 
-			cerbero.Signals.Append(aggregated.AggregatedCandle, "cash", v)
-			for _, p := range pos {
-				c := Candle{Symbol: aggregated.Original.Symbol, Time: aggregated.Original.Time}
-				cerbero.Signals.Append(c, "position", float64(p.Size))
-				cerbero.Signals.Append(aggregated.AggregatedCandle, "broker", float64(p.Size)*p.AvgPrice)
-			}
+			MCash.Record(ctx, v)
+
+			// // cerbero.Signals.Append(aggregated.AggregatedCandle, "cash", v)
+			// for _, p := range pos {
+			// 	c := Candle{Symbol: aggregated.Original.Symbol, Time: aggregated.Original.Time}
+			// 	cerbero.Signals.Append(c, "position", float64(p.Size))
+			// 	cerbero.Signals.Append(aggregated.AggregatedCandle, "broker", float64(p.Size)*p.AvgPrice)
+			// }
 
 			// Only orders are processed with the raw candles
 			if !aggregated.IsAggregated {
@@ -205,16 +209,19 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 
 			// Once orders are processed, we should update the available cash,
 			// the broker state and all the fisgnals
-
-			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_open", aggregated.AggregatedCandle.Open)
-			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_high", aggregated.AggregatedCandle.High)
-			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_low", aggregated.AggregatedCandle.Low)
-			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_close", aggregated.AggregatedCandle.Close)
-			cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_volume", float64(aggregated.AggregatedCandle.Volume))
+			MCandleOpen.Record(ctx, aggregated.AggregatedCandle.Open)
+			MCandleHigh.Record(ctx, aggregated.AggregatedCandle.High)
+			MCandleClose.Record(ctx, aggregated.AggregatedCandle.Close)
+			MCandleLow.Record(ctx, aggregated.AggregatedCandle.Low)
+			MCandleLow.Record(ctx, aggregated.AggregatedCandle.Low)
+			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_open", aggregated.AggregatedCandle.Open)
+			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_high", aggregated.AggregatedCandle.High)
+			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_low", aggregated.AggregatedCandle.Low)
+			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_close", aggregated.AggregatedCandle.Close)
+			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_volume", float64(aggregated.AggregatedCandle.Volume))
 
 			candles = append(candles, aggregated.AggregatedCandle)
 			cerbero.Strategy.Eval(candles)
-			cerbero.Signals.Flush()
 
 		}
 	}()
@@ -222,11 +229,11 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	wg.Wait()
 	cerbero.Broker.Shutdown()
 
-	stats.TotalTime = time.Now().Sub(start)
-	stats.TotalTimeString = stats.TotalTime.String()
-	stats.FinalCash = cerbero.Broker.AvailableCash()
-	stats.PL = (stats.FinalCash/stats.InitialCash - 1) * 100
-	return stats, nil
+	execStats.TotalTime = time.Now().Sub(start)
+	execStats.TotalTimeString = execStats.TotalTime.String()
+	execStats.FinalCash = cerbero.Broker.AvailableCash()
+	execStats.PL = (execStats.FinalCash/execStats.InitialCash - 1) * 100
+	return execStats, nil
 }
 
 func Open(candles []Candle) []float64 {

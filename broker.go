@@ -111,7 +111,7 @@ type BacktestBrocker struct {
 	EvalCommissions     EvaluateCommissions
 	Stdout              *log.Logger
 	Stderr              *log.Logger
-	Signals             Signal
+	// Signals             Signal
 }
 
 func (b *BacktestBrocker) SubmitOrder(_ Candle, order Order) (string, error) {
@@ -171,12 +171,12 @@ func (b *BacktestBrocker) GetOrderByID(orderID string) (Order, error) {
 }
 
 func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
-
-	if b.Signals == nil {
-		b.Signals = &MemorySignals{
-			Metrics: map[string]*TimeSerie{},
-		}
-	}
+	ctx := GetNewContextFromCandle(candle)
+	// if b.Signals == nil {
+	// 	b.Signals = &MemorySignals{
+	// 		Metrics: map[string]*TimeSerie{},
+	// 	}
+	// }
 	// b.Stdout.Printf(fmt.Sprintf("[%v] processing orders ", candle.TimeStr()))
 	var orderPlaced []Order
 
@@ -238,12 +238,12 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 		if orderQty > 0 { // || // BUY  -> use my cash
 			// haveInPortfolio && orderQty < 0 { // CLOSE
 			b.BrokerAvailableCash -= cashChange // cashChange is <0 is I'm selling
-			b.Signals.Append(candle, "trades_buy", order.AvgFilledPrice)
+			MTradesBuy.Record(ctx, order.AvgFilledPrice)
 		}
 
 		if orderQty < 0 {
 			b.BrokerAvailableCash += cashChange
-			b.Signals.Append(candle, "trades_sell", order.AvgFilledPrice)
+			MTradesSell.Record(ctx, order.AvgFilledPrice)
 		}
 
 		// Update the Portfolio

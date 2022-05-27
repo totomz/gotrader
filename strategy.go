@@ -14,8 +14,8 @@ type Strategy interface {
 // <editor-fold desc="Test Strategy" >
 
 type SimplePsarStrategy struct {
-	Symbol  Symbol
-	Signals Signal
+	Symbol Symbol
+	// Signals Signal
 }
 
 func (s *SimplePsarStrategy) Eval(candles []Candle) {
@@ -28,7 +28,7 @@ func (s *SimplePsarStrategy) Eval(candles []Candle) {
 	psar, trend := indicator.ParabolicSar(High(candles), Low(candles), Close(candles))
 	log.Printf("%s psar:%v trend: %v", candle, psar[len(psar)-1], trend[len(trend)-1])
 
-	s.Signals.Append(candle, "psar", psar[len(psar)-1])
+	// s.Signals.Append(candle, "psar", psar[len(psar)-1])
 
 }
 
