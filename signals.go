@@ -24,9 +24,7 @@ var (
 	MCash        = NewMetricWithDefaultViews("cash")
 	MPosition    = NewMetricWithDefaultViews("position")
 
-	KeySymbol, _     = tag.NewKey("symbol")
-	KeyCandleTime, _ = tag.NewKey("candleTime") // Time in some string representation
-
+	KeySymbol, _ = tag.NewKey("symbol")
 )
 
 func GetNewContextFromCandle(c Candle) context.Context {
@@ -86,7 +84,7 @@ func (m *Metric) Get(ctx context.Context, step int) (float64, error) {
 
 func NewMetricWithDefaultViews(name string) *Metric {
 	m := stats.Float64(name, "", stats.UnitDimensionless)
-	v := &view.View{Measure: m, Aggregation: view.LastValue(), TagKeys: []tag.Key{KeySymbol, KeyCandleTime}}
+	v := &view.View{Measure: m, Aggregation: view.LastValue(), TagKeys: []tag.Key{KeySymbol}}
 
 	err := view.Register(v)
 	if err != nil {

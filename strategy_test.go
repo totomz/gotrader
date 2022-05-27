@@ -27,8 +27,8 @@ var (
 	TestMetric = NewMetricWithDefaultViews("psar2")
 
 	testViews = []*view.View{
-		{Measure: MTestPsar, Aggregation: view.LastValue(), TagKeys: []tag.Key{KeySymbol, KeyCandleTime}},
-		{Measure: MTestPSarTrend, Aggregation: view.LastValue(), TagKeys: []tag.Key{KeySymbol, KeyCandleTime}},
+		{Measure: MTestPsar, Aggregation: view.LastValue(), TagKeys: []tag.Key{KeySymbol}},
+		{Measure: MTestPSarTrend, Aggregation: view.LastValue(), TagKeys: []tag.Key{KeySymbol}},
 	}
 )
 
