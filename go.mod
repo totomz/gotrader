@@ -4,8 +4,8 @@ go 1.16
 
 require (
 	cloud.google.com/go v0.100.2 // indirect
-	github.com/alpacahq/alpaca-trade-api-go/v2 v2.2.0
-	github.com/cinar/indicator v1.1.0
+	github.com/alpacahq/alpaca-trade-api-go/v2 v2.5.0
+	github.com/cinar/indicator v1.2.18
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/go-cmp v0.5.6
@@ -17,8 +17,5 @@ require (
 
 	// required by ibapi :(
 	go.uber.org/zap v1.16.0
-	golang.org/x/net v0.0.0-20220520000938-2e3eb7b945c2 // indirect
 	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
-	google.golang.org/genproto v0.0.0-20220523171625-347a074981d8 // indirect
-	google.golang.org/grpc v1.46.2 // indirect
 )
