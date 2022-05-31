@@ -6,7 +6,6 @@ import (
 	"github.com/alpacahq/alpaca-trade-api-go/v2/alpaca"
 	"github.com/shopspring/decimal"
 	"github.com/totomz/gotrader"
-	"go.opencensus.io/tag"
 	"log"
 	"time"
 )
@@ -41,9 +40,6 @@ func (ab *AlpacaBroker) SignalsPortfolioStatus() {
 		ab.Stderr.Printf("polling can't list positions: %v", err)
 	}
 	ctx := context.Background()
-	ctx, err = tag.New(ctx,
-		tag.Insert(gotrader.KeySymbol, "ZYO"),
-	)
 	totalAssets := ab.AvailableCash()
 
 	for _, p := range positions {
