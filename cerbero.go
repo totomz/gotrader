@@ -22,6 +22,11 @@ type ExecutionResult struct {
 	FinalCash       float64       `json:"final_cash"`
 }
 
+var (
+	MetricActivePosition = NewMetricWithDefaultViews("broker_position")
+	BrockerPosition      = NewMetricWithDefaultViews("broker")
+)
+
 // TimeAggregation aggregate the candles from a channel and write the output in a separate channel
 type TimeAggregation func(<-chan Candle) <-chan AggregatedCandle
 
@@ -191,16 +196,16 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			_ = cerbero.Broker.ProcessOrders(aggregated.Original)
 
 			v := cerbero.Broker.AvailableCash()
-			// pos := cerbero.Broker.GetPositions()
+			pos := cerbero.Broker.GetPositions()
 
 			MCash.Record(ctx, v)
 
 			// // cerbero.Signals.Append(aggregated.AggregatedCandle, "cash", v)
-			// for _, p := range pos {
-			// 	c := Candle{Symbol: aggregated.Original.Symbol, Time: aggregated.Original.Time}
-			// 	cerbero.Signals.Append(c, "position", float64(p.Size))
-			// 	cerbero.Signals.Append(aggregated.AggregatedCandle, "broker", float64(p.Size)*p.AvgPrice)
-			// }
+			for _, p := range pos {
+				c := GetNewContextFromCandle(Candle{Symbol: aggregated.Original.Symbol, Time: aggregated.Original.Time})
+				MetricActivePosition.Record(c, float64(p.Size))
+				BrockerPosition.Record(c, float64(p.Size))
+			}
 
 			// Only orders are processed with the raw candles
 			if !aggregated.IsAggregated {

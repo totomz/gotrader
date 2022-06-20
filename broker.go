@@ -172,12 +172,6 @@ func (b *BacktestBrocker) GetOrderByID(orderID string) (Order, error) {
 
 func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 	ctx := GetNewContextFromCandle(candle)
-	// if b.Signals == nil {
-	// 	b.Signals = &MemorySignals{
-	// 		Metrics: map[string]*TimeSerie{},
-	// 	}
-	// }
-	// b.Stdout.Printf(fmt.Sprintf("[%v] processing orders ", candle.TimeStr()))
 	var orderPlaced []Order
 
 	for _, order := range b.OrderMap {
@@ -189,11 +183,9 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 		if order.Status == OrderStatusFullFilled ||
 			order.Status == OrderStatusRejected ||
 			order.Symbol != candle.Symbol {
-			// b.Stdout.Printf(".    --> %s SKIPPED", order.String())
 			continue
 		}
 
-		// b.Stdout.Printf("[%s]    --> %s ", candle.TimeStr(), order.String())
 		order.Status = OrderStatusPartiallyFilled
 
 		var orderQty int64
