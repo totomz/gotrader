@@ -1,0 +1,31 @@
+version: "3.9" 
+services:
+  gotaset:
+    image: totomz84/gotaset
+    ports:
+      - "8080:8080"
+    command:
+      - gotaset
+      - -file=/data/signals_grafana.json
+    volumes:
+      - ${PWD}/plotly:/data
+  grafana:
+    image: grafana/grafana-oss:8.3.1
+    ports:
+      - "3000:3000"
+    volumes:
+      # store configs and dashboards locally
+      - ${PWD}/grafana_s:/var/lib/grafana      
+      - ${PWD}/grafana_provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ${PWD}/grafana_provisioning/dashboards:/etc/grafana/provisioning/dashboards
+    environment:
+      - GF_LOG_MODE=console
+      - GF_INSTALL_PLUGINS=simpod-json-datasource
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    links:
+      - gotaset
+#
+#volumes:
+#  grafana: {}
