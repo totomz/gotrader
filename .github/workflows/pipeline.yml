@@ -12,7 +12,7 @@ jobs:
           go-version: 1.19
       - name: Setup shMake
         run: |
-          echo "ciao ${PWD}
+          echo "ciao ${PWD}"
           ls -ahl
           curl -o shmake "https://raw.githubusercontent.com/totomz/shmake/main/shmake"
           ls -ahl
