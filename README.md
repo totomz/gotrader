@@ -11,4 +11,7 @@ Check out the [examples](examples)!
 go-trader is heavily inspired by [Backtrader](https://github.com/mementum/backtrader) 
 
 ## Indicators
-The indicators are based on [github.com/cinar/indicator](github.com/cinar/indicator)
+The indicators are based on [github.com/cinar/indicator](https://github.com/cinar/indicator)
+
+# Development
+[shMake](https://github.com/totomz/shmake) is required to build and run the testss
