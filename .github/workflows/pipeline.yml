@@ -11,10 +11,6 @@ jobs:
         with:
           go-version: 1.19
       - name: Setup shMake
-        run: |
-          echo "ciao ${PWD}"
-          ls -ahl
-          curl -o shmake "https://raw.githubusercontent.com/totomz/shmake/main/shmake"
-          ls -ahl
+        run: curl -o shmake "https://raw.githubusercontent.com/totomz/shmake/main/shmake"
       - name: Build And Test
-        run: shmake test      
+        run: ./shmake test      
