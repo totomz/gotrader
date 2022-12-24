@@ -16,10 +16,12 @@ require (
 	go.uber.org/zap v1.16.0
 )
 
+require github.com/fsnotify/fsnotify v1.6.0
+
 require (
 	cloud.google.com/go v0.100.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
-	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
+	golang.org/x/sys v0.0.0-20220908164124-27713097b956 // indirect
 )

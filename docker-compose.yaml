@@ -5,12 +5,11 @@ services:
     ports:
       - "8080:8080"
     command:
-      - gotaset
       - -file=/data/signals_grafana.json
     volumes:
       - ${PWD}/plotly:/data
   grafana:
-    image: grafana/grafana-oss:8.3.1
+    image: grafana/grafana-oss:9.3.2
     ports:
       - "3000:3000"
     volumes:
