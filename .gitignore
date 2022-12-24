@@ -23,3 +23,5 @@ server
 signals*.json
 pippo
 /.env
+/gotaset/bin/
+/grafana_s/
