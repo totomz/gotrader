@@ -25,6 +25,11 @@ type ExecutionResult struct {
 var (
 	MetricActivePosition = NewMetricWithDefaultViews("broker_position")
 	BrockerPosition      = NewMetricWithDefaultViews("broker")
+
+	// Stdout is used to log everything that is not considered an error
+	Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
+	// Stderr log errors that need attention
+	Stderr = log.New(os.Stderr, "[ERROR]", log.Lmsgprefix|log.Lshortfile|log.Ltime)
 )
 
 // TimeAggregation aggregate the candles from a channel and write the output in a separate channel
@@ -122,23 +127,13 @@ type Cerbero struct {
 	Strategy            Strategy
 	DataFeed            DataFeed
 	TimeAggregationFunc TimeAggregation
-	Stdout              *log.Logger
-	Stderr              *log.Logger
-	registeredViews     []*view.View
+	// Stdout              *log.Logger
+	// Stderr              *log.Logger
+	registeredViews []*view.View
 	// Signals             Signal
 }
 
 func (cerbero *Cerbero) Run() (ExecutionResult, error) {
-
-	if cerbero.Stderr == nil {
-		cerbero.Stderr = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
-	}
-
-	// if cerbero.Signals == nil {
-	// 	cerbero.Signals = &MemorySignals{
-	// 		Metrics: map[string]*TimeSerie{},
-	// 	}
-	// }
 
 	var wg sync.WaitGroup
 	start := time.Now()
@@ -166,12 +161,9 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 		defer wg.Done()
 		basefeed, err := cerbero.DataFeed.Run()
 		if err != nil {
-			cerbero.Stderr.Fatalf("Error consuming base feed -- %v", err)
-			return
+			Stderr.Fatalf("Error consuming base feed -- %v", err)
 		}
-		if cerbero.Stdout != nil {
-			cerbero.Stdout.Println("started base feed consumer routine")
-		}
+		Stdout.Println("started base feed consumer routine")
 
 		for tick := range basefeed {
 			baseFeedCloneForTimeAggregation <- tick
@@ -184,9 +176,7 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	go func() {
 		defer wg.Done()
 		var candles []Candle
-		if cerbero.Stdout != nil {
-			cerbero.Stdout.Println("started strategy routine")
-		}
+		Stdout.Println("started strategy routine")
 
 		for aggregated := range aggregatedFeed {
 			ctx := GetNewContextFromCandle(aggregated.AggregatedCandle)

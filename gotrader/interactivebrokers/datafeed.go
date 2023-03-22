@@ -4,15 +4,12 @@ import (
 	"fmt"
 	"github.com/hadrianl/ibapi"
 	"github.com/totomz/gotrader/gotrader"
-	"log"
 	"time"
 )
 
 type DataFeed struct {
 	IbClient  *IbClientConnector
 	Contracts []*ibapi.Contract
-	Stdout    *log.Logger
-	Stderr    *log.Logger
 }
 
 func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
@@ -21,12 +18,12 @@ func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
 
 	for i := range feed.Contracts {
 		contract := feed.Contracts[i]
-		feed.Stdout.Println(fmt.Sprintf("Starting feed %v", contract))
+		gotrader.Stdout.Println(fmt.Sprintf("Starting feed %v", contract))
 		dataChannel, errorChannel := feed.IbClient.SubscribeMarketData5sBar(contract)
 
 		go func() {
 			for bar := range dataChannel {
-				feed.Stdout.Printf("Bar: %s", bar.String())
+				gotrader.Stdout.Printf("Bar: %s", bar.String())
 
 				// La ritorno al channel
 				candle := gotrader.Candle{
@@ -43,14 +40,14 @@ func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
 				case feedCandles <- candle:
 					// message sent
 				default:
-					feed.Stdout.Printf("bar dropped %v", bar)
+					gotrader.Stdout.Printf("bar dropped %v", bar)
 				}
 			}
 		}()
 
 		go func() {
 			for err := range errorChannel {
-				feed.Stderr.Printf("ERROR - %v", err)
+				gotrader.Stderr.Printf("ERROR - %v", err)
 			}
 		}()
 

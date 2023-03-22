@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"github.com/cinar/indicator"
 	"github.com/totomz/gotrader/gotrader"
-	"log"
-	"os"
 	"time"
 )
 
@@ -33,20 +31,29 @@ func (s *SimpleStrategy) Eval(candles []gotrader.Candle) {
 	// buy if we're not in a position
 	if currentPosition.Size == 0 {
 		if psar > c.Close {
-			s.broker.SubmitOrder(c, gotrader.Order{
+			_, err := s.broker.SubmitOrder(c, gotrader.Order{
 				Size:   10,
 				Symbol: c.Symbol,
 				Type:   gotrader.OrderBuy,
 			})
+
+			if err != nil {
+				// handle the error
+			}
+
 		}
 
 		return
 	} else {
-		s.broker.SubmitOrder(c, gotrader.Order{
+		_, err := s.broker.SubmitOrder(c, gotrader.Order{
 			Size:   10,
 			Symbol: c.Symbol,
 			Type:   gotrader.OrderSell,
 		})
+
+		if err != nil {
+			// handle the error
+		}
 	}
 
 }
@@ -56,8 +63,13 @@ func main() {
 
 	symbl := gotrader.Symbol("FB")
 	sday := time.Date(2021, 1, 11, 0, 0, 0, 0, time.Local)
-	stdout := log.New(os.Stdout, "", log.Lshortfile|log.Ltime|log.Lmsgprefix)
-	stderr := log.New(os.Stdout, "[ERROR]", log.Lshortfile|log.Ltime|log.Lmsgprefix)
+
+	/*
+		It is possible to override the global logger by setting these variables
+		eg: in backtesting, is useful to log to io.Discard to skip logs and run faster
+		gotrader.Stdout = log.New(io.Discard, "", log.Lshortfile|log.Ltime|log.Lmsgprefix)
+		gotrader.Stderr = log.New(os.Stdout, "[ERROR]", log.Lshortfile|log.Ltime|log.Lmsgprefix)
+	*/
 
 	startingCash := 10000.0
 	service := gotrader.Cerbero{
@@ -66,8 +78,6 @@ func main() {
 			Portfolio:           map[gotrader.Symbol]gotrader.Position{},
 			BrokerAvailableCash: startingCash,
 			EvalCommissions:     gotrader.Nocommissions,
-			Stdout:              stdout,
-			Stderr:              stderr,
 		},
 		Strategy: &SimpleStrategy{}, // your strategy to run
 		DataFeed: &gotrader.IBZippedCSV{ // candle datafeed; CSV files for backtesting
@@ -76,9 +86,6 @@ func main() {
 			DataFolder: "./datasets",
 		},
 		TimeAggregationFunc: gotrader.AggregateBySeconds(10),
-
-		Stdout: stdout, // this could be set to nil to avoid logging in backtesting
-		Stderr: stderr, // errors can have their custom logger
 	}
 
 	result, err := service.Run()

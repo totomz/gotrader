@@ -3,28 +3,19 @@ package alpacabroker
 import (
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/totomz/gotrader/gotrader"
-	"log"
 	"os"
 	"testing"
 	"time"
 )
 
 var (
-	stdout    = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
-	stderr    = log.New(os.Stdout, "[ERROR]", log.Lshortfile|log.Ltime|log.Lmsgprefix)
 	apiKey    = os.Getenv("ALPACA_KEY")
 	apiSecret = os.Getenv("ALPACA_SECRET")
 	baseUrl   = "https://paper-api.alpaca.markets"
 
 	c = gotrader.Candle{}
 
-	alpa = NewAlpacaBroker(AlpacaBroker{
-		Stdout: stdout,
-		Stderr: stderr,
-		// Signals: &gotrader.MemorySignals{
-		// 	Metrics: map[string]*gotrader.TimeSerie{},
-		// },
-	}, apiKey, apiSecret, baseUrl)
+	alpa = NewAlpacaBroker(apiKey, apiSecret, baseUrl)
 )
 
 func TestNewBroker(t *testing.T) {
