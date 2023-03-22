@@ -66,11 +66,11 @@ func (ib *IbBroker) GetOrderByID(orderID string) (gotrader.Order, error) {
 	return *order, nil
 }
 
-func (ib *IbBroker) ProcessOrders(candle gotrader.Candle) {
+func (ib *IbBroker) ProcessOrders(_ gotrader.Candle) {
 	// Do nothing, the order is processed by the broker
 }
 
-func (ib *IbBroker) GetPosition(symbol gotrader.Symbol) (gotrader.Position, bool) {
+func (ib *IbBroker) GetPosition(_ gotrader.Symbol) (gotrader.Position, bool) {
 	panic("NOT IMPLEMENTED")
 }
 

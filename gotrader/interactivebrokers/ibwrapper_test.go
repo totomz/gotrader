@@ -10,7 +10,8 @@ const gateway = "192.168.10.105"
 const port = 7496
 const clientID = 100
 
-func NotTest_GetContract(t *testing.T) {
+func TestGetContract(t *testing.T) {
+	t.Skip("not a test - manual command")
 	ibClient, err := NewIbClientConnector(gateway, port, clientID, nil, nil)
 	if err != nil {
 		t.Fatal(err)

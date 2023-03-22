@@ -14,9 +14,9 @@ go get -v github.com/totomz/gotrader
 ```
 
 Then write a simple strategy 
-```go
+```
 package main
-import "github.com/totomz/gotrader"
+import "github.com/totomz/gotrader/gotrader"
 
 type SimpleStrategy struct {
 	broker gotrader.Broker
@@ -36,7 +36,7 @@ func (s *SimpleStrategy) Eval(candles []gotrader.Candle) {
 # Data Visualization
 ## Backtestsing
 Candles and indicators are saved in `Signals`, that can be exported in a JSON format once the simulation is done
-```go
+```
 dataGrafana := gotrader.SignalsToGrafana()
 err = os.WriteFile("./plotly/signals_grafana.json", dataGrafana, 0644)
 if err != nil {

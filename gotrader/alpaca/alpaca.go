@@ -56,7 +56,7 @@ func (ab *AlpacaBroker) Shutdown() {
 	// do nothing
 }
 
-func (ab *AlpacaBroker) ProcessOrders(candle gotrader.Candle) []gotrader.Order {
+func (ab *AlpacaBroker) ProcessOrders(_ gotrader.Candle) []gotrader.Order {
 	// This method is only required for backtesting, to process the orders at new candles.
 	return nil
 }
@@ -79,7 +79,7 @@ func OrderToString(order *alpaca.Order) string {
 	return fmt.Sprintf("{%s - %s %v %s }", order.ID, order.Side, order.Qty, order.Symbol)
 }
 
-func (ab *AlpacaBroker) SubmitOrder(candle gotrader.Candle, order gotrader.Order) (string, error) {
+func (ab *AlpacaBroker) SubmitOrder(_ gotrader.Candle, order gotrader.Order) (string, error) {
 
 	// if ab.DisableOrders {
 	// 	ab.Stderr.Printf("alpaca orders are disabled!")

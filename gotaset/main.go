@@ -7,7 +7,6 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/totomz/gotrader/gotrader"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -83,7 +82,7 @@ func main() {
 	if err != nil {
 		stdout.Fatal(err)
 	}
-	defer watcher.Close()
+	defer func() { _ = watcher.Close() }()
 
 	service := Service{
 		// values: AlignMetrics(LoadMetrics("gotaset/signals_grafana.json")),
@@ -135,11 +134,11 @@ func main() {
 func (s *Service) Hello(w http.ResponseWriter, r *http.Request) {
 	stdout.Printf("catch! %s", r.URL.Path)
 	w.WriteHeader(200)
-	io.WriteString(w, "version 1")
+	_, _ = io.WriteString(w, "version 1")
 }
 
 func logRequest(r *http.Request) []byte {
-	request, err := ioutil.ReadAll(r.Body)
+	request, err := io.ReadAll(r.Body)
 	if err != nil {
 		panic(err)
 	}
@@ -167,7 +166,7 @@ func (s *Service) Search(w http.ResponseWriter, r *http.Request) {
 
 	default:
 		// Get all the available metrics
-		for k, _ := range s.values {
+		for k := range s.values {
 			results = append(results, k)
 		}
 	}
@@ -175,7 +174,7 @@ func (s *Service) Search(w http.ResponseWriter, r *http.Request) {
 	sort.Strings(results)
 	j, _ := json.Marshal(results)
 	w.WriteHeader(200)
-	io.WriteString(w, string(j))
+	_, _ = io.WriteString(w, string(j))
 }
 
 func (s *Service) Query(w http.ResponseWriter, r *http.Request) {
@@ -235,7 +234,7 @@ func (s *Service) Query(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(200)
-	io.WriteString(w, string(res))
+	_, _ = io.WriteString(w, string(res))
 }
 
 // GetOutboundIP Get preferred outbound ip of this machine
@@ -244,7 +243,7 @@ func GetOutboundIP() net.IP {
 	if err != nil {
 		stdout.Fatal(err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	localAddr := conn.LocalAddr().(*net.UDPAddr)
 
