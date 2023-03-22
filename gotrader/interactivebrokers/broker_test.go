@@ -1,7 +1,7 @@
 package interactivebrokers
 
 import (
-	"github.com/totomz/gotrader"
+	"github.com/totomz/gotrader/gotrader"
 	"testing"
 )
 

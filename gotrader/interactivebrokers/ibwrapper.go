@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/hadrianl/ibapi"
 	"github.com/pkg/errors"
-	"github.com/totomz/gotrader"
+	"github.com/totomz/gotrader/gotrader"
 	"go.uber.org/zap"
 	"log"
 	"os"
@@ -562,9 +562,11 @@ Returns the order book.
 tickerId -  the request's identifier
 position -  the order book's row being updated
 operation - how to refresh the row:
+
 	0 = insert (insert this new order into the row identified by 'position')
 	1 = update (update the existing order in the row identified by 'position')
 	2 = delete (delete the existing order at the row identified by 'position').
+
 side -  0 for ask, 1 for bid
 price - the order's price
 size -  the order's size

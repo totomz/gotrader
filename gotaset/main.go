@@ -5,7 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fsnotify/fsnotify"
-	"github.com/totomz/gotrader"
+	"github.com/totomz/gotrader/gotrader"
 	"io"
 	"io/ioutil"
 	"log"

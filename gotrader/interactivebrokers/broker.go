@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hadrianl/ibapi"
-	"github.com/totomz/gotrader"
+	"github.com/totomz/gotrader/gotrader"
 	"log"
 	"strconv"
 	"time"

@@ -4,19 +4,14 @@ COMMIT="$(git rev-parse --abbrev-ref HEAD)-$(gitver)"
 TIMESTAMP=$(date +%FT%T)
 
 
-get() {
-  go get -t -v  
-}
-
 build() {
-  get
-  go vet
-	go build -ldflags "-X main.build=${TIMESTAMP}-${COMMIT}" -o server .
+  go get -t -v  ./...
+#  go vet ./...
+	go build -ldflags "-X main.build=${TIMESTAMP}-${COMMIT}" ./gotrader
 }
 
 test() {
-  build
-  # shellcheck disable=SC2046
+  build  
   go test -parallel 8 -count=1 -cover $(go list ./... | grep -v /interactivebrokers)
 }
 
