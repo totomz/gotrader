@@ -6,13 +6,10 @@ import (
 	"github.com/alpacahq/alpaca-trade-api-go/v2/alpaca"
 	"github.com/shopspring/decimal"
 	"github.com/totomz/gotrader/gotrader"
-	"log"
 	"time"
 )
 
 type AlpacaBroker struct {
-	Stdout *log.Logger
-	Stderr *log.Logger
 	client alpaca.Client
 }
 
@@ -22,22 +19,23 @@ var (
 	MAlpacaAssets = gotrader.NewMetricWithDefaultViews("alpaca/total_assets")
 )
 
-func NewAlpacaBroker(config AlpacaBroker, apiKey, apiSecret, baseUrl string) *AlpacaBroker {
+func NewAlpacaBroker(apiKey, apiSecret, baseUrl string) *AlpacaBroker {
 
 	client := alpaca.NewClient(alpaca.ClientOpts{
 		ApiKey:    apiKey,
 		ApiSecret: apiSecret,
 		BaseURL:   baseUrl,
 	})
-	config.client = client
 
-	return &config
+	return &AlpacaBroker{
+		client: client,
+	}
 }
 
 func (ab *AlpacaBroker) SignalsPortfolioStatus() {
 	positions, err := ab.client.ListPositions()
 	if err != nil {
-		ab.Stderr.Printf("polling can't list positions: %v", err)
+		gotrader.Stderr.Printf("polling can't list positions: %v", err)
 	}
 	ctx := context.Background()
 	totalAssets := ab.AvailableCash()
@@ -65,7 +63,7 @@ func (ab *AlpacaBroker) AvailableCash() float64 {
 
 	account, err := ab.client.GetAccount()
 	if err != nil {
-		ab.Stderr.Panic(err)
+		gotrader.Stderr.Panic(err)
 	}
 
 	if account.Status != "ACTIVE" {
@@ -104,13 +102,13 @@ func (ab *AlpacaBroker) SubmitOrder(_ gotrader.Candle, order gotrader.Order) (st
 	}
 	placedOrder, err := ab.client.PlaceOrder(orderRequest)
 	if err != nil {
-		ab.Stderr.Printf("can't place order %s: %v", order.String(), err)
+		gotrader.Stderr.Printf("can't place order %s: %v", order.String(), err)
 		return "", err
 	}
 
-	ab.Stdout.Printf("submitted order %s", OrderToString(placedOrder))
+	gotrader.Stdout.Printf("submitted order %s", OrderToString(placedOrder))
 
-	// The order is submitted but we don't know yet the
+	// The order is submitted, but we don't know yet the
 	// avgFlledPrice, neither if it has been fullfiled or not.
 
 	return placedOrder.ID, nil
@@ -168,7 +166,7 @@ func (ab *AlpacaBroker) GetPosition(symbol gotrader.Symbol) gotrader.Position {
 			return zeroVal
 		}
 
-		ab.Stderr.Printf("error getting position for %v: %v", symbol, err)
+		gotrader.Stderr.Printf("error getting position for %v: %v", symbol, err)
 		return zeroVal
 	}
 
@@ -206,7 +204,7 @@ func (ab *AlpacaBroker) GetPositions() []gotrader.Position {
 	var zeroVal []gotrader.Position
 	positions, err := ab.client.ListPositions()
 	if err != nil {
-		ab.Stderr.Printf("error getting positions %v", err)
+		gotrader.Stderr.Printf("error getting positions %v", err)
 		return zeroVal
 	}
 

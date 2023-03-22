@@ -3,7 +3,6 @@ package gotrader
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
 	"time"
@@ -108,8 +107,8 @@ type BacktestBrocker struct {
 	OrderMap            map[string]*Order
 	Portfolio           map[Symbol]Position
 	EvalCommissions     EvaluateCommissions
-	Stdout              *log.Logger
-	Stderr              *log.Logger
+	// Stdout              *log.Logger
+	// Stderr              *log.Logger
 	// Signals             Signal
 }
 
@@ -203,7 +202,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			// Do we have enough money to execute the order?
 			requiredCash := float64(orderQty)*candle.Open + b.EvalCommissions(*order, candle.Open)
 			if b.BrokerAvailableCash < requiredCash {
-				b.Stderr.Fatalf("[%s]    --> %s - order failed - no cash, need $%v have $%v", candle.TimeStr(), order.String(), requiredCash, b.BrokerAvailableCash)
+				Stderr.Fatalf("[%s]    --> %s - order failed - no cash, need $%v have $%v", candle.TimeStr(), order.String(), requiredCash, b.BrokerAvailableCash)
 			}
 
 		case OrderSell:
@@ -270,10 +269,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			order.Status = OrderStatusFullFilled
 		}
 
-		if b.Stdout != nil {
-			b.Stdout.Printf("[%s]    --> %s: filled %v@%v ", candle.TimeStr(), order.String(), orderQty, candle.Open)
-		}
-
+		Stdout.Printf("[%s]    --> %s: filled %v@%v ", candle.TimeStr(), order.String(), orderQty, candle.Open)
 		orderPlaced = append(orderPlaced, *order)
 
 	}

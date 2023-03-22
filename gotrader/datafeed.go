@@ -22,7 +22,6 @@ type Candle struct {
 }
 
 func (candle Candle) TimeStr() string {
-	// return fmt.Sprintf("%v [%s]", candle.Time.Format("2006-01-02 15:04:05"), candle.Symbol)
 	return fmt.Sprintf(" %-5s %v", candle.Symbol, candle.Time.Format("15:04:05"))
 }
 
@@ -46,25 +45,15 @@ type IBZippedCSV struct {
 	Slowtime   int
 	Symbol     Symbol
 	Symbols    []Symbol
-	Stdout     *log.Logger
-	Stderr     *log.Logger
 }
 
 func (d *IBZippedCSV) Run() (chan Candle, error) {
-
-	if d.Stdout == nil {
-		d.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
-	}
-	if d.Stderr == nil {
-		d.Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
-	}
-
 	var files []*os.File
 	var scanners []*bufio.Scanner
 	var latestInsts []time.Time
 
 	stream := make(chan Candle, 24*time.Hour/time.Second)
-	d.Stdout.Println("Start feeding the candles in the channel")
+	Stdout.Println("Start feeding the candles in the channel")
 
 	if len(d.Symbols) == 0 {
 		d.Symbols = []Symbol{d.Symbol}
@@ -72,7 +61,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 
 	for _, s := range d.Symbols {
 		file := filepath.Join(d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), s))
-		d.Stdout.Printf("opening file %s", file)
+		Stdout.Printf("opening file %s", file)
 
 		f, err := os.Open(file)
 
@@ -80,7 +69,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 			// When running tests from the IDE, the working dir is in the folder of the test file.
 			// This porkaround allow us to easily run tests
 			file = filepath.Join("..", d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), s))
-			d.Stdout.Printf("opening file - retrying %s", file)
+			Stdout.Printf("opening file - retrying %s", file)
 			f, err = os.Open(file)
 			if err != nil {
 				return nil, err
@@ -104,7 +93,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 			for i, scanner := range scanners {
 
 				if !scanner.Scan() {
-					files[i].Close()
+					_ = files[i].Close()
 					openScanners -= 1
 					continue
 				}
@@ -112,13 +101,13 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 				parts := strings.Split(scanner.Text(), ",")
 				inst, err := time.ParseInLocation("20060102 15:04:05", parts[0], time.Local)
 				if err != nil {
-					d.Stderr.Println("Can't parse the datetime! Skipping a candle")
+					Stderr.Println("Can't parse the datetime! Skipping a candle")
 					continue
 				}
 
 				// Skip candles that are in the past (should never happen, but happened with IB csv files)
 				if inst.Before(latestInsts[i]) || inst.Equal(latestInsts[i]) {
-					d.Stdout.Printf("skipping candle in the past! Last: %v, new:%v", latestInsts[i].String(), inst.String())
+					Stdout.Printf("skipping candle in the past! Last: %v, new:%v", latestInsts[i].String(), inst.String())
 					continue
 				}
 				latestInsts[i] = inst
@@ -141,7 +130,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 			}
 		}
 
-		d.Stdout.Println("closing datafeed")
+		Stdout.Println("closing datafeed")
 		close(stream)
 
 	}()

@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/cinar/indicator"
 	"github.com/totomz/gotrader/gotrader"
-	"log"
 	"os"
 	"time"
 )
@@ -57,8 +56,6 @@ func main() {
 func boringStuff() (gotrader.ExecutionResult, error) {
 	symbl := gotrader.Symbol("FB")
 	sday := time.Date(2021, 1, 11, 0, 0, 0, 0, time.Local)
-	stdout := log.New(os.Stdout, "", log.Lshortfile|log.Ltime|log.Lmsgprefix)
-	stderr := log.New(os.Stdout, "[ERROR]", log.Lshortfile|log.Ltime|log.Lmsgprefix)
 
 	startingCash := 10000.0
 	service := gotrader.Cerbero{
@@ -67,8 +64,6 @@ func boringStuff() (gotrader.ExecutionResult, error) {
 			Portfolio:           map[gotrader.Symbol]gotrader.Position{},
 			BrokerAvailableCash: startingCash,
 			EvalCommissions:     gotrader.Nocommissions,
-			Stdout:              stdout,
-			Stderr:              stderr,
 		},
 		Strategy: &EmptyStrategy{}, // your strategy to run
 		DataFeed: &gotrader.IBZippedCSV{ // candle datafeed; CSV files for backtesting
@@ -77,9 +72,6 @@ func boringStuff() (gotrader.ExecutionResult, error) {
 			DataFolder: "./datasets",
 		},
 		TimeAggregationFunc: gotrader.AggregateBySeconds(10),
-
-		Stdout: stdout, // this could be set to nil to avoid logging in backtesting
-		Stderr: stderr, // errors can have their custom logger
 	}
 
 	return service.Run()
