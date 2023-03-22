@@ -41,12 +41,13 @@ func (s *MockStrategy) Eval(candles []Candle) {
 
 	c := candles[len(candles)-1]
 	psar, trend := indicator.ParabolicSar(High(candles), Low(candles), Close(candles))
+	_ = Open(candles) // this line is useless, I need it to avoid the lint error "Unused function Open"
 	ctx := GetNewContextFromCandle(c)
 	stats.Record(ctx, MTestPsar.M(psar[len(psar)-1]))
 	stats.Record(ctx, MTestPSarTrend.M(float64(trend[len(trend)-1])))
 
 	TestMetric.Record(ctx, psar[len(psar)-1])
-	TestMetric.Get(ctx, -3)
+	_, _ = TestMetric.Get(ctx, -3)
 	if c.Time.Equal(time.Date(2021, 1, 11, 17, 11, 30, 00, time.Local)) {
 		_, _ = s.broker.SubmitOrder(c, Order{
 			Size:   50,

@@ -34,7 +34,7 @@ func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
 					High:   bar.High,
 					Close:  bar.Close,
 					Low:    bar.Low,
-					Volume: int64(bar.Volume),
+					Volume: bar.Volume,
 					Symbol: gotrader.Symbol(contract.Symbol),
 					Time:   time.Unix(bar.Time, 0),
 				}

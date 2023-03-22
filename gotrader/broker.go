@@ -19,9 +19,8 @@ const (
 )
 
 var (
-	ErrOrderNotFound  = errors.New("order not found")
-	ErrNotEnoughFunds = errors.New("not enough funds")
-	ErrInvalidSize    = errors.New("order.size should be > 0")
+	ErrOrderNotFound = errors.New("order not found")
+	ErrInvalidSize   = errors.New("order.size should be > 0")
 )
 
 type OrderStatus int
@@ -205,7 +204,6 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			requiredCash := float64(orderQty)*candle.Open + b.EvalCommissions(*order, candle.Open)
 			if b.BrokerAvailableCash < requiredCash {
 				b.Stderr.Fatalf("[%s]    --> %s - order failed - no cash, need $%v have $%v", candle.TimeStr(), order.String(), requiredCash, b.BrokerAvailableCash)
-				continue
 			}
 
 		case OrderSell:
@@ -311,11 +309,11 @@ func (b *BacktestBrocker) ClosePosition(position Position) error {
 		orderType = OrderBuy
 	}
 
-	b.SubmitOrder(Candle{}, Order{
+	_, err := b.SubmitOrder(Candle{}, Order{
 		Symbol: position.Symbol,
 		Size:   int64(math.Abs(float64(position.Size))),
 		Type:   orderType,
 	})
 
-	return nil
+	return err
 }
