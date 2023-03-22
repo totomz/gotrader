@@ -14,5 +14,7 @@ jobs:
         run: |
           curl -o shmake "https://raw.githubusercontent.com/totomz/shmake/main/shmake"
           chmod +x shmake
-      - name: Build And Test
+      - name: Build 
+        run: ./shmake build      
+      - name:  Test
         run: ./shmake test      

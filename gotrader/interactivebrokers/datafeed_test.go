@@ -2,7 +2,7 @@ package interactivebrokers
 
 import (
 	"github.com/hadrianl/ibapi"
-	"github.com/totomz/gotrader"
+	"github.com/totomz/gotrader/gotrader"
 	"log"
 	"os"
 	"testing"
@@ -23,7 +23,7 @@ func TestIbDataFeedGetCandles5Secs(t *testing.T) {
 	})
 
 	dataFeed := DataFeed{
-		Contracts: []ibapi.Contract{TSLA, AMZN},
+		Contracts: []*ibapi.Contract{&TSLA, &AMZN},
 		IbClient:  &ibClient,
 		Stdout:    stdout,
 		Stderr:    stderr,

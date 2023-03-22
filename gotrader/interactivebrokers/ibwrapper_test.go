@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-const gateway = "127.0.0.1"
-const port = 7497
+const gateway = "192.168.10.105"
+const port = 7496
 const clientID = 100
 
 func NotTest_GetContract(t *testing.T) {
