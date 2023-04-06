@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
 	"log"
 	"math"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -31,9 +34,7 @@ func GetNewContextFromCandle(c Candle) context.Context {
 	// The tags are hdden in OpenCensus.
 	// We need to have access to the candle, so we duplicate it.
 	ctx := context.WithValue(context.Background(), candleCtxKey, c)
-	ctx, err := tag.New(ctx,
-		tag.Insert(KeySymbol, string(c.Symbol)),
-	)
+	ctx, err := tag.New(ctx, tag.Insert(KeySymbol, string(c.Symbol)))
 	if err != nil {
 		panic(err) // This should never happen, really
 	}
@@ -151,4 +152,47 @@ func SignalsToGrafana() []byte {
 		panic(err)
 	}
 	return b
+}
+
+type ExportCsv struct {
+	FileName string
+	headers  []string
+}
+
+var CsvExporter ExportCsv
+
+// ExportLineCSV Export all the last metrics to a csv file
+func ExportLineCSV() {
+	if CsvExporter.FileName == "" {
+		return
+	}
+
+	if len(CsvExporter.headers) == 0 {
+		for metricName := range localDb.Metrics {
+			CsvExporter.headers = append(CsvExporter.headers, metricName)
+		}
+		appendLine(CsvExporter.FileName, strings.Join(CsvExporter.headers, ","))
+	}
+
+	line := make([]string, len(CsvExporter.headers))
+	for i, k := range CsvExporter.headers {
+		line[i] = fmt.Sprintf("%v", localDb.Metrics[k].Y[len(localDb.Metrics[k].Y)-1])
+	}
+
+	appendLine(CsvExporter.FileName, strings.Join(line, ","))
+
+}
+
+func appendLine(filename, line string) {
+	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		Stderr.Printf("can't open csv file for metrics: %v", err)
+		return
+	}
+
+	defer func() { _ = f.Close() }()
+
+	if _, err = f.WriteString(line + "\n"); err != nil {
+		Stderr.Printf("can't append metric line to csv: %v", err)
+	}
 }
