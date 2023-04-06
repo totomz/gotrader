@@ -76,7 +76,7 @@ func main() {
 	filePath := flag.String("file", "./plotly/signals_grafana.json", "file to watch")
 	flag.Parse()
 
-	stdout.Printf(fmt.Sprintf("lalalalalalalala: %s", *filePath))
+	stdout.Printf(fmt.Sprintf("Loading son from: %s", *filePath))
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
