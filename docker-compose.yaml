@@ -1,7 +1,7 @@
 version: "3.9" 
 services:
   gotaset:
-    image: totomz84/gotaset
+    image: totomz84/gotaset:main-273fb44
     ports:
       - "8080:8080"
     command:

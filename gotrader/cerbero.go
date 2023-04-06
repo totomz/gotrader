@@ -209,15 +209,11 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			MCandleClose.Record(ctx, aggregated.AggregatedCandle.Close)
 			MCandleLow.Record(ctx, aggregated.AggregatedCandle.Low)
 			MCandleLow.Record(ctx, aggregated.AggregatedCandle.Low)
-			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_open", aggregated.AggregatedCandle.Open)
-			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_high", aggregated.AggregatedCandle.High)
-			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_low", aggregated.AggregatedCandle.Low)
-			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_close", aggregated.AggregatedCandle.Close)
-			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_volume", float64(aggregated.AggregatedCandle.Volume))
 
 			candles = append(candles, aggregated.AggregatedCandle)
 			cerbero.Strategy.Eval(candles)
 
+			ExportLineCSV()
 		}
 	}()
 

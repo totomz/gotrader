@@ -6,13 +6,13 @@ TIMESTAMP=$(date +%FT%T)
 
 build() {
   go get -t -v  ./...
-#  go vet ./...
+  go vet ./...
 	go build -ldflags "-X main.build=${TIMESTAMP}-${COMMIT}" ./gotrader
 }
 
 test() {
   build  
-  go test -parallel 8 -count=1 -cover $(go list ./... | grep -v /interactivebrokers)
+  go test -parallel 8 -count=1 -cover "$(go list ./... | grep -v /interactivebrokers)"
 }
 
 test-all() {
@@ -21,14 +21,15 @@ test-all() {
 }
 
 build-gotaset() {
-  go vet
   rm -rf gotaset/bin
+  GOTATAG="${COMMIT}"
 	GOOS=linux GOARCH=amd64 go build -ldflags "-X main.build=${TIMESTAMP}-${COMMIT}" -o gotaset/bin/gotaset_linux_amd64 gotaset/main.go
 	GOOS=linux GOARCH=arm64 go build -ldflags "-X main.build=${TIMESTAMP}-${COMMIT}" -o gotaset/bin/gotaset_linux_arm64 gotaset/main.go
-	GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.build=${TIMESTAMP}-${COMMIT}" -o gotaset/bin/gotaset_darwin_arm64 gotaset/main.go
-	GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.build=${TIMESTAMP}-${COMMIT}" -o gotaset/bin/gotaset_darwin_amd64 gotaset/main.go
+#	GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.build=${TIMESTAMP}-${COMMIT}" -o gotaset/bin/gotaset_darwin_arm64 gotaset/main.go
+#	GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.build=${TIMESTAMP}-${COMMIT}" -o gotaset/bin/gotaset_darwin_amd64 gotaset/main.go
 
-  docker buildx build -t totomz84/gotaset:${COMMIT} gotaset/
-  docker push totomz84/gotaset:${COMMIT}
+  docker buildx build --platform linux/amd64 -t "totomz84/gotaset:${GOTATAG}-arm" gotaset/
+  docker buildx build --platform linux/arm64 -t "totomz84/gotaset:${GOTATAG}-x86" gotaset/
+#  docker push totomz84/gotaset:${COMMIT}
 }
 

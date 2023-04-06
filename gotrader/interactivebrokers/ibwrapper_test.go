@@ -12,7 +12,7 @@ const clientID = 100
 
 func TestGetContract(t *testing.T) {
 	t.Skip("not a test - manual command")
-	ibClient, err := NewIbClientConnector(gateway, port, clientID, nil, nil)
+	ibClient, err := NewIbClientConnector(gateway, port, clientID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestGetContract(t *testing.T) {
 
 func TestGetContracts(t *testing.T) {
 
-	ibClient, err := NewIbClientConnector(gateway, port, clientID, nil, nil)
+	ibClient, err := NewIbClientConnector(gateway, port, clientID)
 	if err != nil {
 		t.Fatal(err)
 	}

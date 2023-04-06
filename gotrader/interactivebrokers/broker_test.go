@@ -6,7 +6,7 @@ import (
 )
 
 func TestGetAvailableCash(t *testing.T) {
-	ibClient, err := NewIbClientConnector(gateway, port, clientID, nil, nil)
+	ibClient, err := NewIbClientConnector(gateway, port, clientID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -15,7 +15,7 @@ func TestGetAvailableCash(t *testing.T) {
 	})
 
 	broker := IbBroker{
-		IBClient: &ibClient,
+		IBClient: ibClient,
 	}
 
 	cash := broker.AvailableCash()
@@ -26,7 +26,7 @@ func TestGetAvailableCash(t *testing.T) {
 }
 
 func TestGetOrderNX(t *testing.T) {
-	ibClient, err := NewIbClientConnector(gateway, port, clientID, nil, nil)
+	ibClient, err := NewIbClientConnector(gateway, port, clientID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestGetOrderNX(t *testing.T) {
 		ibClient.Close()
 	})
 
-	broker := NewIbBrocker(&ibClient)
+	broker := NewIbBrocker(ibClient)
 
 	_, err = broker.GetOrderByID("NANANANANA BATMAN")
 	if err == nil || err.Error() != "order not found" {
@@ -47,7 +47,7 @@ func TestSimpleOrder(t *testing.T) {
 	// ORDERS ARE NOT CANCELLED because the broker api does not allow us to cancel an order :)
 	// YOLO !!
 
-	ibClient, err := NewIbClientConnector(gateway, port, clientID, nil, nil)
+	ibClient, err := NewIbClientConnector(gateway, port, clientID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestSimpleOrder(t *testing.T) {
 		ibClient.Close()
 	})
 
-	broker := NewIbBrocker(&ibClient)
+	broker := NewIbBrocker(ibClient)
 
 	orderId, err := broker.SubmitOrder(gotrader.Order{
 		Size:   1,

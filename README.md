@@ -46,6 +46,10 @@ if err != nil {
 
 This file can be used to plot candles and indicators in Grafana
 
+# *internal*
+1) Copy `grafana_provisioning` and `docker-compose`
+2) Export the signals in a folder `plotly`
+3) docker-compose up
 
 TODO:
 - [ ] Visualizzo la roba su grafana
