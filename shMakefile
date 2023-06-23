@@ -7,7 +7,7 @@ TIMESTAMP=$(date +%FT%T)
 build() {
   go get -t -v  ./...
 #  go vet ./...
-	go build -ldflags "-X main.build=${TIMESTAMP}-${COMMIT}" ./gotrader
+	go build -ldflags "-X main.build=${TIMESTAMP}-${COMMIT}" -o bin/gotrader ./
 }
 
 test() {

@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/cinar/indicator"
-	"github.com/totomz/gotrader/gotrader"
+	"github.com/totomz/gotrader"
 	"os"
 	"time"
 )

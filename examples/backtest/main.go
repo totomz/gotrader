@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/cinar/indicator"
-	"github.com/totomz/gotrader/gotrader"
+	"github.com/totomz/gotrader"
 	"time"
 )
 

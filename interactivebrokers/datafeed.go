@@ -3,7 +3,7 @@ package interactivebrokers
 import (
 	"fmt"
 	"github.com/hadrianl/ibapi"
-	"github.com/totomz/gotrader/gotrader"
+	"github.com/totomz/gotrader"
 	"time"
 )
 

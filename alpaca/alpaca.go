@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/alpacahq/alpaca-trade-api-go/v2/alpaca"
 	"github.com/shopspring/decimal"
-	"github.com/totomz/gotrader/gotrader"
+	"github.com/totomz/gotrader"
 	"time"
 )
 

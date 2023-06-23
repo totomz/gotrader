@@ -2,7 +2,7 @@ package alpacabroker
 
 import (
 	_ "github.com/joho/godotenv/autoload"
-	"github.com/totomz/gotrader/gotrader"
+	"github.com/totomz/gotrader"
 	"os"
 	"testing"
 	"time"

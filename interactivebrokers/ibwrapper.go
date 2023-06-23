@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/hadrianl/ibapi"
 	"github.com/pkg/errors"
-	"github.com/totomz/gotrader/gotrader"
+	"github.com/totomz/gotrader"
 	"go.uber.org/zap"
 	"strconv"
 	"sync"

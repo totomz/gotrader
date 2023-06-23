@@ -1,6 +1,6 @@
 module github.com/totomz/gotrader
 
-go 1.19
+go 1.20
 
 require (
 	github.com/alpacahq/alpaca-trade-api-go/v2 v2.5.0

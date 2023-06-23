@@ -2,7 +2,7 @@ package interactivebrokers
 
 import (
 	"github.com/hadrianl/ibapi"
-	"github.com/totomz/gotrader/gotrader"
+	"github.com/totomz/gotrader"
 	"testing"
 	"time"
 )

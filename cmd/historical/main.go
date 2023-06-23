@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/hadrianl/ibapi"
-	ibdriver "github.com/totomz/gotrader/gotrader/interactivebrokers"
+	ibdriver "github.com/totomz/gotrader/interactivebrokers"
 	"golang.org/x/exp/slog"
 	"os"
 )
