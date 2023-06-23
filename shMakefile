@@ -12,6 +12,7 @@ build() {
 
 test() {
   build  
+  # shellcheck disable=SC2046
   go test -parallel 8 -count=1 -cover $(go list ./... | grep -v /interactivebrokers)
 }
 
