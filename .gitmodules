@@ -1,0 +1,3 @@
+[submodule "gotrader-viewer"]
+	path = gotrader-viewer
+	url = git@github.com:totomz/gotrader-viewer.git
