@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/cinar/indicator"
 	"github.com/totomz/gotrader"
-	"os"
+	"go.opencensus.io/stats/view"
 	"time"
 )
 
@@ -26,26 +26,33 @@ func (s *EmptyStrategy) Eval(candles []gotrader.Candle) {
 	// this way we can link a metric to the symbol it belongs to
 	ctx := gotrader.GetNewContextFromCandle(c)
 	Psar.Record(ctx, psar[len(psar)-1])
+
 }
 
 // main Example of a backtesting strategy
 func main() {
 
+	// When running in realtime,
+	// metrics are exported by regular Opencensus exporter
+	exporter, err := gotrader.NewRedisExporter("127.0.0.1:6379")
+	view.RegisterExporter(exporter)
+	view.SetReportingPeriod(1 * time.Second)
+
 	// The creation of a service and datafeed is out of context for this example
-	_, err := boringStuff()
+	executionResult, err := boringStuff()
 	if err != nil {
 		panic(err)
 	}
 
-	// When running in realtime,
-	// metrics are exported by regular Opencensus exporter
+	println(executionResult.PL)
+
 	// When backtesting, the timestamps are in the past (time is given by the candle)
 	// We can export the metrics to a json file, and feed it in a grafana
-	dataGrafana := gotrader.SignalsToGrafana()
-	err = os.WriteFile("plotly/signals_grafana.json", dataGrafana, 0644)
-	if err != nil {
-		panic(err)
-	}
+	// dataGrafana := gotrader.SignalsToGrafana()
+	// err = os.WriteFile("plotly/signals_grafana.json", dataGrafana, 0644)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
 	// Now, run `docker-compose up` and go to http://localhost:3000
 	// Data have the time of the candles! This example uses candles from 11/01/2021 ( <-- 11 January),
@@ -70,6 +77,7 @@ func boringStuff() (gotrader.ExecutionResult, error) {
 			Symbol:     symbl,
 			Sday:       sday,
 			DataFolder: "./datasets",
+			Slowtime:   1 * time.Second, // Wait before sending out candles; set to 0 to run at full speed in backtesting
 		},
 		TimeAggregationFunc: gotrader.AggregateBySeconds(10),
 	}

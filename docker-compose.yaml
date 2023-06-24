@@ -1,17 +1,20 @@
 version: "3.9" 
 services:
-  gotaset:
-    image: totomz84/gotaset
+  redis:
+    image: redis/redis-stack:7.0.0-edge
+    networks:
+      - gotrader_redis
     ports:
-      - "8080:8080"
-    command:
-      - -file=/data/signals_grafana.json
+      - "6379:6379"
+      - "8001:8001" # redisInsight
     volumes:
-      - ${PWD}/plotly:/data
+      - ${PWD}/grafana_provisioning/redis_data:/data/
   grafana:
-    image: grafana/grafana-oss:9.3.2
+    image: grafana/grafana-oss:10.0.1-ubuntu
     ports:
       - "3000:3000"
+    networks:
+      - gotrader_redis 
     volumes:
       # store configs and dashboards locally
       - ${PWD}/grafana_s:/var/lib/grafana      
@@ -19,12 +22,9 @@ services:
       - ${PWD}/grafana_provisioning/dashboards:/etc/grafana/provisioning/dashboards
     environment:
       - GF_LOG_MODE=console
-      - GF_INSTALL_PLUGINS=simpod-json-datasource
+      - GF_INSTALL_PLUGINS=simpod-json-datasource,redis-datasource
       - GF_AUTH_DISABLE_LOGIN_FORM=true
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
-    links:
-      - gotaset
-#
-#volumes:
-#  grafana: {}
+networks:
+  gotrader_redis: {}    

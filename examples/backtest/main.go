@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/cinar/indicator"
 	"github.com/totomz/gotrader"
+	"go.opencensus.io/stats/view"
 	"time"
 )
 
@@ -64,6 +65,13 @@ func main() {
 	symbl := gotrader.Symbol("FB")
 	sday := time.Date(2021, 1, 11, 0, 0, 0, 0, time.Local)
 
+	exporter, err := gotrader.NewRedisExporter("127.0.0.1:6379")
+	view.RegisterExporter(exporter)
+
+	// Disable the automatic metric reporting whn running in backtest
+	// and call Flush() (see at the end)
+	view.SetReportingPeriod(1 * time.Hour)
+
 	/*
 		It is possible to override the global logger by setting these variables
 		eg: in backtesting, is useful to log to io.Discard to skip logs and run faster
@@ -84,6 +92,7 @@ func main() {
 			Symbol:     symbl,
 			Sday:       sday,
 			DataFolder: "./datasets",
+			Slowtime:   0 * time.Second, // Wait before sending out candles; set to 0 to run at full speed in backtesting
 		},
 		TimeAggregationFunc: gotrader.AggregateBySeconds(10),
 	}
@@ -94,5 +103,8 @@ func main() {
 	}
 
 	println(fmt.Sprintf("Run in %s; strategy result: %f", result.TotalTimeString, startingCash-result.FinalCash))
+	start := time.Now()
+	exporter.Flush() // When running in backtest, you need to flush all the metrics (reporter could not
 
+	println(fmt.Sprintf("elapsed flush: %v", time.Now().Sub(start)))
 }

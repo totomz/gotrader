@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/alpacahq/alpaca-trade-api-go/v2 v2.5.0
 	github.com/cinar/indicator v1.2.18
-	github.com/google/go-cmp v0.5.8
+	github.com/google/go-cmp v0.5.9
 	github.com/hadrianl/ibapi v0.0.0-20210428041841-65ae418d9353
 	github.com/joho/godotenv v1.4.0
 	github.com/pkg/errors v0.8.1
@@ -18,6 +18,7 @@ require (
 
 require (
 	github.com/fsnotify/fsnotify v1.6.0
+	github.com/redis/rueidis v1.0.9
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 )
 
@@ -26,5 +27,5 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
-	golang.org/x/sys v0.1.0 // indirect
+	golang.org/x/sys v0.8.0 // indirect
 )

@@ -42,7 +42,7 @@ type DataFeed interface {
 type IBZippedCSV struct {
 	DataFolder string
 	Sday       time.Time
-	Slowtime   int
+	Slowtime   time.Duration
 	Symbol     Symbol
 	Symbols    []Symbol
 }
@@ -126,7 +126,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 			}
 
 			if d.Slowtime > 0 {
-				time.Sleep(time.Duration(d.Slowtime) * time.Second)
+				time.Sleep(d.Slowtime)
 			}
 		}
 

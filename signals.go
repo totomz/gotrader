@@ -2,8 +2,9 @@ package gotrader
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/redis/rueidis"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
@@ -84,6 +85,8 @@ func (m *Metric) Get(ctx context.Context, step int) (float64, error) {
 
 func NewMetricWithDefaultViews(name string) *Metric {
 	m := stats.Float64(name, "", stats.UnitDimensionless)
+	// Warning: the RedisExporter support only view.LastValue()as Aggregation.
+	// If you change it here, it will panic
 	v := &view.View{Measure: m, Aggregation: view.LastValue(), TagKeys: []tag.Key{KeySymbol}}
 
 	err := view.Register(v)
@@ -145,10 +148,72 @@ func (s *MemorySignals) Get(candle Candle, name string, i int) (float64, error) 
 	return ts.Y[index], nil
 }
 
-func SignalsToGrafana() []byte {
-	b, err := json.Marshal(localDb.Metrics)
+type RedisExporter struct {
+	// MetricNameGenerator MUST return a string formatted as `gotrader.<symbol>.<metric>`
+	MetricNameGenerator func(vd *view.Data, row *view.Row) string
+	redis               rueidis.Client
+}
+
+func NewRedisExporter(redisHostPort string) (*RedisExporter, error) {
+
+	client, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{redisHostPort}})
 	if err != nil {
 		panic(err)
 	}
-	return b
+
+	return &RedisExporter{
+		MetricNameGenerator: DefaultViewToName,
+		redis:               client,
+	}, nil
+}
+
+func (exp RedisExporter) ExportView(vd *view.Data) {
+
+	for _, row := range vd.Rows {
+
+		metricName := exp.MetricNameGenerator(vd, row)
+		value, supportedAggregation := row.Data.(*view.LastValueData)
+		if !supportedAggregation {
+			panic("RedisExporter supports only view.LastValueData as Aggregation")
+		}
+
+		exp.redis.Do(context.Background(), exp.redis.B().TsAdd().Key(metricName).Timestamp(vd.End.UnixMilli()).Value(value.Value).Build())
+		println(fmt.Sprintf("TS.ADD %s %v %v", metricName, vd.End.UnixMilli(), value.Value))
+
+	}
+
+}
+
+func (exp RedisExporter) Flush() {
+	metrics := localDb.Metrics
+	if metrics == nil || len(metrics) == 0 {
+		Stderr.Panicf("flush() works only in backtesting with Memorysignals")
+	}
+
+	var cmds []rueidis.Completed
+
+	for mKey, mValue := range metrics {
+
+		// mKey := <symbol>.<metric>
+		for i := range mValue.X {
+			// println(fmt.Sprintf("TS.ADD gotrader.%s %v %v", mKey, mValue.X[i].UnixMilli(), mValue.Y[i]))
+			c := exp.redis.B().TsAdd().Key(fmt.Sprintf("gotrader.%s", mKey)).Timestamp(mValue.X[i].UnixMilli()).Value(mValue.Y[i]).Build()
+
+			cmds = append(cmds, c)
+		}
+
+	}
+	exp.redis.DoMulti(context.Background(), cmds...)
+
+}
+
+func DefaultViewToName(vd *view.Data, row *view.Row) string {
+	tagSymbol := "__missing__"
+	for _, t := range row.Tags {
+		if t.Key.Name() == "symbol" {
+			tagSymbol = t.Value
+		}
+	}
+
+	return fmt.Sprintf("gotrader.%s.%s", tagSymbol, vd.View.Name)
 }

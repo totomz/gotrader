@@ -99,4 +99,10 @@ func TestMetricCandles(t *testing.T) {
 	if valN != 1 {
 		t.Errorf("expected 1, got %f", valN)
 	}
+
+	// This test is only to avoid a warning about unused metric
+	// that is actually needed by strategies based on gotrader
+	if MPosition.Name != "position" {
+		t.Error("missing metric 'position")
+	}
 }

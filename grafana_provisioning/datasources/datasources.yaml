@@ -1,0 +1,17 @@
+apiVersion: 1
+
+datasources:
+  - name: redislocal
+    type: redis-datasource
+    access: proxy
+    orgId: 1
+    isDefault: true
+    version: 1
+    url: redis://redis:6379
+    jsonData:
+      client: standalone
+      poolSize: 5
+      timeout: 10
+      pingInterval: 0
+      pipelineWindow: 0
+    editable: true
