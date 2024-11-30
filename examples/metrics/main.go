@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/cinar/indicator"
 	"github.com/totomz/gotrader"
 	"go.opencensus.io/stats/view"
 	"time"
@@ -16,11 +15,14 @@ var (
 type EmptyStrategy struct{}
 
 func (s *EmptyStrategy) Initialize(_ *gotrader.Cerbero) {}
+func (s *EmptyStrategy) Shutdown() {
+
+}
 
 // Eval is called each time a new candle is ready. The
 func (s *EmptyStrategy) Eval(candles []gotrader.Candle) {
 	c := candles[len(candles)-1]
-	psar, _ := indicator.ParabolicSar(gotrader.High(candles), gotrader.Low(candles), gotrader.Close(candles))
+	psar := gotrader.High(candles)
 
 	// Metrics/signals are associated to a context,
 	// this way we can link a metric to the symbol it belongs to

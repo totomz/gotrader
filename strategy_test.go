@@ -1,7 +1,6 @@
 package gotrader
 
 import (
-	"github.com/cinar/indicator"
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
@@ -17,6 +16,9 @@ type MockStrategy struct {
 
 func (s *MockStrategy) Initialize(cerbero *Cerbero) {
 	s.broker = cerbero.Broker
+}
+
+func (s *MockStrategy) Shutdown() {
 }
 
 // A strategy can defines metrics and views
@@ -40,7 +42,7 @@ func (s *MockStrategy) Eval(candles []Candle) {
 	}
 
 	c := candles[len(candles)-1]
-	psar, trend := indicator.ParabolicSar(High(candles), Low(candles), Close(candles))
+	psar, trend := []float64{0}, []int{-1}
 	_ = Open(candles) // this line is useless, I need it to avoid the lint error "Unused function Open"
 	ctx := GetNewContextFromCandle(c)
 	stats.Record(ctx, MTestPsar.M(psar[len(psar)-1]))

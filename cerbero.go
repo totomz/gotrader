@@ -189,6 +189,7 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			pos := cerbero.Broker.GetPositions()
 
 			MCash.Record(ctx, v)
+			MStartingCash.Record(ctx, cerbero.Broker.AvailableCash())
 
 			// // cerbero.Signals.Append(aggregated.AggregatedCandle, "cash", v)
 			for _, p := range pos {
@@ -208,7 +209,7 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			MCandleHigh.Record(ctx, aggregated.AggregatedCandle.High)
 			MCandleClose.Record(ctx, aggregated.AggregatedCandle.Close)
 			MCandleLow.Record(ctx, aggregated.AggregatedCandle.Low)
-			MCandleLow.Record(ctx, aggregated.AggregatedCandle.Low)
+			MCandleVolume.Record(ctx, float64(aggregated.AggregatedCandle.Volume))
 			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_open", aggregated.AggregatedCandle.Open)
 			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_high", aggregated.AggregatedCandle.High)
 			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_low", aggregated.AggregatedCandle.Low)
@@ -222,6 +223,7 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	}()
 
 	wg.Wait()
+	cerbero.Strategy.Shutdown()
 	cerbero.Broker.Shutdown()
 
 	execStats.TotalTime = time.Now().Sub(start)

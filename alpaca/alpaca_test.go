@@ -143,7 +143,5 @@ func TestInvertPosition(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pos := alpa.GetPosition("TSLA")
-	println(pos.Size)
-	println("e mo?")
+	// pos := alpa.GetPosition("TSLA")
 }

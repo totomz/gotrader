@@ -141,7 +141,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 func mustFloat(str string) float64 {
 	n, err := strconv.ParseFloat(str, 64)
 	if err != nil {
-		log.Fatalf("Cant parse the string %s to a float64 -- %v", str, err)
+		log.Fatalf("Can't parse the string '%s' to a float64 -- %v", str, err)
 	}
 	return n
 }
@@ -149,7 +149,7 @@ func mustFloat(str string) float64 {
 func mustInt(str string) int64 {
 	n, err := strconv.ParseInt(str, 10, 64)
 	if err != nil {
-		log.Fatalf("Cant parse the string %s to a float64 -- %v", str, err)
+		log.Fatalf("Can't parse the string %s to an int64 -- %v", str, err)
 	}
 	return n
 }

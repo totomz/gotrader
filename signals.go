@@ -1,6 +1,7 @@
 package gotrader
 
 import (
+	"archive/zip"
 	"context"
 	"errors"
 	"fmt"
@@ -10,20 +11,23 @@ import (
 	"go.opencensus.io/tag"
 	"log"
 	"math"
+	"os"
 	"time"
 )
 
 var (
 	ErrMetricNotFound = errors.New("metric not founc")
 
-	MCandleOpen  = NewMetricWithDefaultViews("candle_open")
-	MCandleHigh  = NewMetricWithDefaultViews("candle_high")
-	MCandleClose = NewMetricWithDefaultViews("candle_close")
-	MCandleLow   = NewMetricWithDefaultViews("candle_low")
-	MTradesBuy   = NewMetricWithDefaultViews("trades_buy")
-	MTradesSell  = NewMetricWithDefaultViews("trades_sell")
-	MCash        = NewMetricWithDefaultViews("cash")
-	MPosition    = NewMetricWithDefaultViews("position")
+	MCandleOpen   = NewMetricWithDefaultViews("candle_open")
+	MCandleHigh   = NewMetricWithDefaultViews("candle_high")
+	MCandleClose  = NewMetricWithDefaultViews("candle_close")
+	MCandleLow    = NewMetricWithDefaultViews("candle_low")
+	MCandleVolume = NewMetricWithDefaultViews("candle_volume")
+	MTradesBuy    = NewMetricWithDefaultViews("trades_buy")
+	MTradesSell   = NewMetricWithDefaultViews("trades_sell")
+	MCash         = NewMetricWithDefaultViews("cash")
+	MStartingCash = NewMetricWithDefaultViews("cash_initial")
+	MPosition     = NewMetricWithDefaultViews("position")
 
 	KeySymbol, _ = tag.NewKey("symbol")
 )
@@ -64,6 +68,12 @@ var localDb = MemorySignals{}
 type ctxKey struct{}
 
 var candleCtxKey = ctxKey{}
+
+func (m *Metric) RecordBatch(candles []Candle, value float64) {
+	for _, c := range candles {
+		localDb.Append(c, m.Name, value)
+	}
+}
 
 func (m *Metric) Record(ctx context.Context, value float64) {
 	stats.Record(ctx, m.measure.M(value))
@@ -161,6 +171,24 @@ func NewRedisExporter(redisHostPort string) (*RedisExporter, error) {
 		panic(err)
 	}
 
+	pingCmd := client.B().Ping().Build()
+	resp := client.Do(context.Background(), pingCmd)
+
+	daje, err := resp.AsBytes()
+	if err != nil {
+		panic(err)
+	}
+	println(fmt.Sprintf("PING? %s", string(daje)))
+
+	set := client.B().Set().Key("dio").Value("cane").Build()
+	resp2 := client.Do(context.Background(), set)
+
+	daje2, err := resp2.AsBytes()
+	if err != nil {
+		panic(err)
+	}
+	println(fmt.Sprintf("PING? %s", string(daje2)))
+
 	return &RedisExporter{
 		MetricNameGenerator: DefaultViewToName,
 		redis:               client,
@@ -170,7 +198,6 @@ func NewRedisExporter(redisHostPort string) (*RedisExporter, error) {
 func (exp RedisExporter) ExportView(vd *view.Data) {
 
 	for _, row := range vd.Rows {
-
 		metricName := exp.MetricNameGenerator(vd, row)
 		value, supportedAggregation := row.Data.(*view.LastValueData)
 		if !supportedAggregation {
@@ -178,9 +205,43 @@ func (exp RedisExporter) ExportView(vd *view.Data) {
 		}
 
 		exp.redis.Do(context.Background(), exp.redis.B().TsAdd().Key(metricName).Timestamp(vd.End.UnixMilli()).Value(value.Value).Build())
-		println(fmt.Sprintf("TS.ADD %s %v %v", metricName, vd.End.UnixMilli(), value.Value))
-
 	}
+
+}
+
+// FlushBuffer saves the commands in a .redis file, that can be imported later
+func (exp RedisExporter) FlushBuffer(path string) {
+	metrics := localDb.Metrics
+	if metrics == nil || len(metrics) == 0 {
+		Stderr.Panicf("FlushBuffer() works only in backtesting with Memorysignals")
+	}
+
+	fname := fmt.Sprintf("%s.redis", time.Now().Format("20060102150405"))
+	archive, err := os.Create(path + string(os.PathSeparator) + fname + ".zip")
+	if err != nil {
+		panic(err)
+	}
+	defer func() { _ = archive.Close() }()
+
+	zipWriter := zip.NewWriter(archive)
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		_ = zipWriter.Flush()
+		_ = zipWriter.Close()
+	}()
+	writer, err := zipWriter.Create(fname)
+
+	for mKey, mValue := range metrics {
+		for i := range mValue.X {
+			chunkSize := 4096 * 16
+			// _, _ = writer.Write([]byte(fmt.Sprintf("TS.ADD gotrader.%s %v %v ENCODING COMPRESSED CHUNK_SIZE %v DUPLICATE_POLICY LAST \n", mKey, mValue.X[i].UnixMilli(), mValue.Y[i], chunkSize)))
+			_, _ = writer.Write([]byte(fmt.Sprintf("TS.ADD gotrader.%s %v %v ENCODING COMPRESSED CHUNK_SIZE %v DUPLICATE_POLICY LAST \n", mKey, mValue.X[i].UnixMilli(), mValue.Y[i], chunkSize)))
+		}
+	}
+
+	localDb.Metrics = map[string]*TimeSerie{}
 
 }
 
@@ -191,20 +252,24 @@ func (exp RedisExporter) Flush() {
 	}
 
 	var cmds []rueidis.Completed
+	// cache := map[string]bool{}
 
 	for mKey, mValue := range metrics {
-
-		// mKey := <symbol>.<metric>
 		for i := range mValue.X {
-			// println(fmt.Sprintf("TS.ADD gotrader.%s %v %v", mKey, mValue.X[i].UnixMilli(), mValue.Y[i]))
 			c := exp.redis.B().TsAdd().Key(fmt.Sprintf("gotrader.%s", mKey)).Timestamp(mValue.X[i].UnixMilli()).Value(mValue.Y[i]).Build()
-
 			cmds = append(cmds, c)
 		}
 
 	}
-	exp.redis.DoMulti(context.Background(), cmds...)
+	results := exp.redis.DoMulti(context.Background(), cmds...)
+	for _, r := range results {
+		if r.Error() != nil {
+			println(r.Error().Error())
+		}
+	}
 
+	// Flush() menas that all metrics are sent and
+	localDb.Metrics = map[string]*TimeSerie{}
 }
 
 func DefaultViewToName(vd *view.Data, row *view.Row) string {

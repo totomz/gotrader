@@ -1,10 +1,9 @@
 module github.com/totomz/gotrader
 
-go 1.20
+go 1.22
 
 require (
 	github.com/alpacahq/alpaca-trade-api-go/v2 v2.5.0
-	github.com/cinar/indicator v1.2.18
 	github.com/google/go-cmp v0.5.9
 	github.com/hadrianl/ibapi v0.0.0-20210428041841-65ae418d9353
 	github.com/joho/godotenv v1.4.0

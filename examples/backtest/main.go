@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/cinar/indicator"
 	"github.com/totomz/gotrader"
 	"go.opencensus.io/stats/view"
 	"time"
@@ -12,6 +11,9 @@ import (
 type SimpleStrategy struct {
 	// broker hold a reference to the current broker, to get current positions and execute orders
 	broker gotrader.Broker
+}
+
+func (s *SimpleStrategy) Shutdown() {
 }
 
 func (s *SimpleStrategy) Initialize(cerbero *gotrader.Cerbero) {
@@ -25,8 +27,7 @@ func (s *SimpleStrategy) Eval(candles []gotrader.Candle) {
 	c := candles[len(candles)-1]
 
 	// Calculate indicators
-	psarl, _ := indicator.ParabolicSar(gotrader.High(candles), gotrader.Low(candles), gotrader.Close(candles))
-	psar := psarl[len(psarl)-1]
+	psar := 0.0
 	currentPosition := s.broker.GetPosition(c.Symbol)
 
 	// buy if we're not in a position
