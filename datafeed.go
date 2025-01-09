@@ -2,6 +2,7 @@ package gotrader
 
 import (
 	"bufio"
+	"compress/gzip"
 	"fmt"
 	"log"
 	"os"
@@ -155,3 +156,115 @@ func mustInt(str string) int64 {
 }
 
 // </editor-fold>
+
+type ZippedCSV struct {
+	DataFolder string
+	Sday       time.Time
+	Slowtime   time.Duration
+	Symbol     Symbol
+	Symbols    []Symbol
+}
+
+func (d *ZippedCSV) Run() (chan Candle, error) {
+	var files []*os.File
+	var scanners []*bufio.Scanner
+	var readers []*gzip.Reader
+	var latestInsts []time.Time
+
+	stream := make(chan Candle, 24*time.Hour/time.Second)
+	Stdout.Println("Start feeding the candles in the channel")
+
+	if len(d.Symbols) == 0 {
+		d.Symbols = []Symbol{d.Symbol}
+	}
+
+	for _, s := range d.Symbols {
+		file := filepath.Join(d.DataFolder, fmt.Sprintf("%s-%s.csv.gz", d.Sday.Format("20060102"), s))
+		Stdout.Printf("opening file %s", file)
+
+		f, err := os.Open(file)
+
+		if err != nil {
+			// When running tests from the IDE, the working dir is in the folder of the test file.
+			// This porkaround allow us to easily run tests
+			file = filepath.Join("..", d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), s))
+			Stdout.Printf("opening file - retrying %s", file)
+			f, err = os.Open(file)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		reader, err := gzip.NewReader(f)
+		if err != nil {
+			panic(err)
+		}
+
+		files = append(files, f)
+		readers = append(readers, reader)
+		scanners = append(scanners, bufio.NewScanner(reader))
+		latestInsts = append(latestInsts, time.Date(1984, 5, 8, 4, 32, 19, 0, time.Local))
+	}
+
+	go func() {
+		openScanners := len(scanners)
+
+		for {
+			if openScanners == 0 {
+				break
+			}
+
+			for i, scanner := range scanners {
+
+				if !scanner.Scan() {
+					_ = readers[i].Close()
+					_ = files[i].Close()
+					openScanners -= 1
+					continue
+				}
+
+				line := scanner.Text()
+				if strings.HasPrefix(line, "timestamp") {
+					// skip the header
+					continue
+				}
+
+				parts := strings.Split(line, ",")
+				inst, err := time.ParseInLocation("2006-01-02 15:04:05-07:00", parts[0], time.Local)
+				if err != nil {
+					Stderr.Println("Can't parse the datetime! Skipping a candle")
+					continue
+				}
+
+				// Skip candles that are in the past (should never happen, but happened with IB csv files)
+				if inst.Before(latestInsts[i]) || inst.Equal(latestInsts[i]) {
+					Stdout.Printf("skipping candle in the past! Last: %v, new:%v", latestInsts[i].String(), inst.String())
+					continue
+				}
+				latestInsts[i] = inst
+
+				candle := Candle{
+					Symbol: d.Symbols[i],
+					Time:   inst,
+					Open:   mustFloat(parts[1]),
+					High:   mustFloat(parts[2]),
+					Low:    mustFloat(parts[3]),
+					Close:  mustFloat(parts[4]),
+					Volume: mustInt(parts[5]),
+				}
+				stream <- candle
+
+			}
+
+			if d.Slowtime > 0 {
+				time.Sleep(d.Slowtime)
+			}
+		}
+
+		Stdout.Println("closing datafeed")
+		close(stream)
+
+	}()
+
+	return stream, nil
+}

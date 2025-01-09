@@ -251,19 +251,41 @@ func (exp RedisExporter) Flush() {
 		Stderr.Panicf("flush() works only in backtesting with Memorysignals")
 	}
 
+	Stdout.Println("REDIS FLUSH ALL")
+	fres := exp.redis.Do(context.Background(), exp.redis.B().Flushall().Sync().Build())
+	if fres.Error() != nil {
+		panic(fres.Error())
+	}
+
 	var cmds []rueidis.Completed
 	// cache := map[string]bool{}
 
 	for mKey, mValue := range metrics {
 		for i := range mValue.X {
+			// cache[mKey] = true
+
+			// println(fmt.Sprintf("%s => %v", fmt.Sprintf("gotrader.%s", mKey)), mValue.Y[i])
+			// fres := exp.redis.Do(context.Background(), exp.redis.B().TsAdd().Key(fmt.Sprintf("gotrader.%s", mKey)).Timestamp(mValue.X[i].UnixMilli()).Value(mValue.Y[i]).Build())
+			// if fres.Error() != nil {
+			// 	panic(fres.Error())
+			// }
+
 			c := exp.redis.B().TsAdd().Key(fmt.Sprintf("gotrader.%s", mKey)).Timestamp(mValue.X[i].UnixMilli()).Value(mValue.Y[i]).Build()
 			cmds = append(cmds, c)
 		}
 
 	}
+
+	// for k, _ := range cache {
+	// 	println(k)
+	// }
+	// time.Sleep(50000 * time.Second)
+
 	results := exp.redis.DoMulti(context.Background(), cmds...)
-	for _, r := range results {
+
+	for i, r := range results {
 		if r.Error() != nil {
+			println(i)
 			println(r.Error().Error())
 		}
 	}
