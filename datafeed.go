@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type Candle struct {
@@ -157,6 +158,15 @@ func mustInt(str string) int64 {
 
 // </editor-fold>
 
+var (
+	CsvIndexOpen   = 1
+	CsvIndexHigh   = 2
+	CsvIndexLow    = 3
+	CsvIndexClose  = 4
+	CsvIndexVolume = 5
+	CsvIndexTime   = 6
+)
+
 type ZippedCSV struct {
 	DataFolder string
 	Sday       time.Time
@@ -224,13 +234,29 @@ func (d *ZippedCSV) Run() (chan Candle, error) {
 				}
 
 				line := scanner.Text()
-				if strings.HasPrefix(line, "timestamp") {
-					// skip the header
+				if !unicode.IsDigit(rune(line[0])) {
+					parts := strings.Split(line, ",")
+					for i, p := range parts {
+						switch p {
+						case "open":
+							CsvIndexOpen = i
+						case "high":
+							CsvIndexHigh = i
+						case "close":
+							CsvIndexClose = i
+						case "low":
+							CsvIndexLow = i
+						case "volume":
+							CsvIndexVolume = i
+						case "timestamp":
+							CsvIndexTime = i
+						}
+					}
 					continue
 				}
 
 				parts := strings.Split(line, ",")
-				inst, err := time.ParseInLocation("2006-01-02 15:04:05-07:00", parts[0], time.Local)
+				inst, err := time.ParseInLocation("2006-01-02 15:04:05-0700", parts[CsvIndexTime], time.Local)
 				if err != nil {
 					Stderr.Println("Can't parse the datetime! Skipping a candle")
 					continue
@@ -246,11 +272,11 @@ func (d *ZippedCSV) Run() (chan Candle, error) {
 				candle := Candle{
 					Symbol: d.Symbols[i],
 					Time:   inst,
-					Open:   mustFloat(parts[1]),
-					High:   mustFloat(parts[2]),
-					Low:    mustFloat(parts[3]),
-					Close:  mustFloat(parts[4]),
-					Volume: mustInt(parts[5]),
+					Open:   mustFloat(parts[CsvIndexOpen]),
+					High:   mustFloat(parts[CsvIndexHigh]),
+					Low:    mustFloat(parts[CsvIndexLow]),
+					Close:  mustFloat(parts[CsvIndexClose]),
+					Volume: mustInt(parts[CsvIndexVolume]),
 				}
 				stream <- candle
 
