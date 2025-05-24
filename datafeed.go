@@ -24,7 +24,7 @@ type Candle struct {
 }
 
 func (candle Candle) TimeStr() string {
-	return fmt.Sprintf(" %-5s %v", candle.Symbol, candle.Time.Format("15:04:05"))
+	return fmt.Sprintf("%-5s %v", candle.Symbol, candle.Time.Format("15:04:05"))
 }
 
 func (candle Candle) String() string {
@@ -256,7 +256,7 @@ func (d *ZippedCSV) Run() (chan Candle, error) {
 				}
 
 				parts := strings.Split(line, ",")
-				inst, err := time.ParseInLocation("2006-01-02 15:04:05-0700", parts[CsvIndexTime], time.Local)
+				inst, err := time.ParseInLocation("2006-01-02 15:04:05-07:00", parts[CsvIndexTime], time.Local)
 				if err != nil {
 					Stderr.Println("Can't parse the datetime! Skipping a candle")
 					continue

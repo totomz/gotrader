@@ -1,8 +1,14 @@
 package gotrader
 
 import (
+	"bytes"
+	_ "embed"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"math"
+	"net/http"
 	"testing"
 	"time"
 )
@@ -111,4 +117,85 @@ func TestBacktestBrocker_TestOrders(t *testing.T) {
 
 func almostEqual(a, b float64) bool {
 	return math.Abs(a-b) <= 1e-2
+}
+
+type OllamaRequest struct {
+	Model        string             `json:"model"`
+	Prompt       string             `json:"prompt"`
+	Stream       bool               `json:"stream"`
+	KeepAlive    string             `json:"keep_alive"`
+	ModelOptions OllamaModelOptions `json:"options"`
+}
+
+type OllamaModelOptions struct {
+	NumCtx int `json:"num_ctx"`
+}
+
+type OllamaResponse struct {
+	Model              string    `json:"model"`
+	CreatedAt          time.Time `json:"created_at"`
+	Response           string    `json:"response"`
+	Done               bool      `json:"done"`
+	DoneReason         string    `json:"done_reason"`
+	Context            []int     `json:"context"`
+	TotalDuration      int64     `json:"total_duration"`
+	LoadDuration       int64     `json:"load_duration"`
+	PromptEvalCount    int       `json:"prompt_eval_count"`
+	PromptEvalDuration int64     `json:"prompt_eval_duration"`
+	EvalCount          int       `json:"eval_count"`
+	EvalDuration       int       `json:"eval_duration"`
+}
+
+//go:embed prova.prompt
+var prompt string
+
+func TestOllama(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		_, err := doReq()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// println(action)
+	}
+}
+func doReq() (string, error) {
+	request := OllamaRequest{
+		Model: "deepseek-r1:32b",
+		// Model:     "deepseek-coder-v2",  // 80% hold, veloce? da provare ocn prompt diversi
+		Prompt:    prompt,
+		Stream:    false,
+		KeepAlive: "5m",
+		// ModelOptions: OllamaModelOptions{
+		// 	NumCtx: 32000,
+		// },
+	}
+
+	payload, err := json.Marshal(request)
+	if err != nil {
+		return "", err
+	}
+
+	start := time.Now()
+	response, err := http.Post("http://192.168.188.78:11434/api/generate", "application/json", bytes.NewBuffer(payload))
+	if err != nil {
+		return "", err
+	}
+	elapsed := time.Since(start)
+
+	// println(response.StatusCode)
+
+	responseBody, err := io.ReadAll(response.Body)
+	if err != nil {
+		return "", err
+	}
+	// println(string(responseBody))
+
+	var action OllamaResponse
+	err = json.Unmarshal(responseBody, &action)
+	if err != nil {
+		return "", err
+	}
+	println(fmt.Sprintf("action=%s elapsed=%v", action.Response, elapsed))
+	return action.Response, nil
 }
