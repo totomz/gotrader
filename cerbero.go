@@ -91,6 +91,11 @@ func AggregateBySeconds(sec int) TimeAggregation {
 	}
 }
 
+// MergeCandles return a Candle augmenting a with b
+func MergeCandles(a Candle, b Candle) Candle {
+	return mergeCandles(a, b)
+}
+
 // mergeCandles suppose that a is before b.
 func mergeCandles(a Candle, b Candle) Candle {
 	merged := Candle{Symbol: b.Symbol}

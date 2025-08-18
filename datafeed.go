@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 )
@@ -267,6 +268,12 @@ func (d *ZippedCSV) Run() (chan Candle, error) {
 					Stdout.Printf("skipping candle in the past! Last: %v, new:%v", latestInsts[i].String(), inst.String())
 					continue
 				}
+
+				if !IsNasdaqTradingTime(inst) {
+					Stdout.Printf("not in NASDAQ trading time inst=%s", inst.String())
+					continue
+				}
+
 				latestInsts[i] = inst
 
 				candle := Candle{
@@ -293,4 +300,39 @@ func (d *ZippedCSV) Run() (chan Candle, error) {
 	}()
 
 	return stream, nil
+}
+
+var getNyTimeZone = sync.OnceValue[*time.Location](func() *time.Location {
+	loc, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		panic(err)
+	}
+
+	return loc
+})
+
+func IsNasdaqTradingTime(t time.Time) bool {
+	// Load New York timezone
+
+	// Convert UTC time to New York time
+	tInNY := t.In(getNyTimeZone())
+
+	// Check if it's a weekday (Monday=1, ..., Friday=5)
+	weekday := tInNY.Weekday()
+	if weekday < time.Monday || weekday > time.Friday {
+		Stdout.Println(fmt.Sprintf("time outside NASDAW trading hours"))
+		return false
+	}
+
+	// Get the time components
+	hour := tInNY.Hour()
+	minute := tInNY.Minute()
+
+	// Market opens at 9:30 AM ET
+	marketOpen := hour > 9 || (hour == 9 && minute >= 30)
+
+	// Market closes at 4:00 PM ET (16:00)
+	marketClose := hour < 16
+
+	return marketOpen && marketClose
 }
