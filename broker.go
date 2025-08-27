@@ -3,6 +3,7 @@ package gotrader
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/exp/slog"
 	"math"
 	"math/rand"
 	"time"
@@ -202,7 +203,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			// Do we have enough money to execute the order?
 			requiredCash := float64(orderQty)*candle.Open + b.EvalCommissions(*order, candle.Open)
 			if b.BrokerAvailableCash < requiredCash {
-				Stderr.Fatalf("[%s]    --> %s - order failed - no cash, need $%v have $%v", candle.TimeStr(), order.String(), requiredCash, b.BrokerAvailableCash)
+				slog.Error("order failed - no cash", "candle", candle.TimeStr(), "order", order.String(), "required", requiredCash, "available", b.BrokerAvailableCash)
 			}
 
 		case OrderSell:
@@ -269,7 +270,7 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 			order.Status = OrderStatusFullFilled
 		}
 
-		Stdout.Printf("[%s]    --> %s: filled %v@%v ", candle.TimeStr(), order.String(), orderQty, candle.Open)
+		slog.Info("order filled ", "candle_time", candle.TimeStr(), "order", order.String(), "qty", orderQty, "candle_open", candle.Open)
 		orderPlaced = append(orderPlaced, *order)
 
 	}

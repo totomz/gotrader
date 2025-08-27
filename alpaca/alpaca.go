@@ -6,6 +6,7 @@ import (
 	"github.com/alpacahq/alpaca-trade-api-go/v2/alpaca"
 	"github.com/shopspring/decimal"
 	"github.com/totomz/gotrader"
+	"log/slog"
 	"time"
 )
 
@@ -35,7 +36,7 @@ func NewAlpacaBroker(apiKey, apiSecret, baseUrl string) *AlpacaBroker {
 func (ab *AlpacaBroker) SignalsPortfolioStatus() {
 	positions, err := ab.client.ListPositions()
 	if err != nil {
-		gotrader.Stderr.Printf("polling can't list positions: %v", err)
+		slog.Error("polling can't list positions", "error", err)
 	}
 	ctx := context.Background()
 	totalAssets := ab.AvailableCash()
@@ -63,7 +64,8 @@ func (ab *AlpacaBroker) AvailableCash() float64 {
 
 	account, err := ab.client.GetAccount()
 	if err != nil {
-		gotrader.Stderr.Panic(err)
+		slog.Error("can't get account", "error", err)
+		return 0
 	}
 
 	if account.Status != "ACTIVE" {
@@ -102,11 +104,11 @@ func (ab *AlpacaBroker) SubmitOrder(_ gotrader.Candle, order gotrader.Order) (st
 	}
 	placedOrder, err := ab.client.PlaceOrder(orderRequest)
 	if err != nil {
-		gotrader.Stderr.Printf("can't place order %s: %v", order.String(), err)
+		slog.Error("can't place order", "order", order.String(), "error", err, "symbol", order.Symbol)
 		return "", err
 	}
 
-	gotrader.Stdout.Printf("submitted order %s", OrderToString(placedOrder))
+	slog.Info("submitted order", "order", OrderToString(placedOrder), "symbol", order.Symbol)
 
 	// The order is submitted, but we don't know yet the
 	// avgFlledPrice, neither if it has been fullfiled or not.
@@ -166,7 +168,7 @@ func (ab *AlpacaBroker) GetPosition(symbol gotrader.Symbol) gotrader.Position {
 			return zeroVal
 		}
 
-		gotrader.Stderr.Printf("error getting position for %v: %v", symbol, err)
+		slog.Error("error getting position for %v: %v", symbol, err)
 		return zeroVal
 	}
 
@@ -204,7 +206,7 @@ func (ab *AlpacaBroker) GetPositions() []gotrader.Position {
 	var zeroVal []gotrader.Position
 	positions, err := ab.client.ListPositions()
 	if err != nil {
-		gotrader.Stderr.Printf("error getting positions %v", err)
+		slog.Error("error getting positions", "error", err)
 		return zeroVal
 	}
 

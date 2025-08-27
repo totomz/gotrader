@@ -2,8 +2,7 @@ package gotrader
 
 import (
 	"go.opencensus.io/stats/view"
-	"log"
-	"os"
+	"golang.org/x/exp/slog"
 	"sync"
 	"time"
 )
@@ -27,9 +26,9 @@ var (
 	BrockerPosition      = NewMetricWithDefaultViews("broker")
 
 	// Stdout is used to log everything that is not considered an error
-	Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
+	// Stdout = log.New(os.Stdout, "", log.Lshortfile|log.Ltime)
 	// Stderr log errors that need attention
-	Stderr = log.New(os.Stderr, "[ERROR]", log.Lmsgprefix|log.Lshortfile|log.Ltime)
+	// Stderr = log.New(os.Stderr, "[ERROR]", log.Lmsgprefix|log.Lshortfile|log.Ltime)
 )
 
 // TimeAggregation aggregate the candles from a channel and write the output in a separate channel
@@ -166,9 +165,10 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 		defer wg.Done()
 		basefeed, err := cerbero.DataFeed.Run()
 		if err != nil {
-			Stderr.Fatalf("Error consuming base feed -- %v", err)
+			slog.Error("Error consuming base feed", "error", err)
 		}
-		Stdout.Println("started base feed consumer routine")
+
+		slog.Info("started base feed consumer routine")
 
 		for tick := range basefeed {
 			baseFeedCloneForTimeAggregation <- tick
@@ -181,7 +181,7 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	go func() {
 		defer wg.Done()
 		var candles []Candle
-		Stdout.Println("started strategy routine")
+		slog.Info("started strategy routine")
 
 		for aggregated := range aggregatedFeed {
 			ctx := GetNewContextFromCandle(aggregated.AggregatedCandle)
@@ -190,18 +190,18 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			// Realtime broker may use this as a "pre-strategy" entry point
 			_ = cerbero.Broker.ProcessOrders(aggregated.Original)
 
-			v := cerbero.Broker.AvailableCash()
-			pos := cerbero.Broker.GetPositions()
+			// v := cerbero.Broker.AvailableCash()
+			// pos := cerbero.Broker.GetPositions()
 
-			MCash.Record(ctx, v)
-			MStartingCash.Record(ctx, cerbero.Broker.AvailableCash())
+			// MCash.Record(ctx, v)
+			// MStartingCash.Record(ctx, cerbero.Broker.AvailableCash())
 
 			// // cerbero.Signals.Append(aggregated.AggregatedCandle, "cash", v)
-			for _, p := range pos {
-				c := GetNewContextFromCandle(Candle{Symbol: aggregated.Original.Symbol, Time: aggregated.Original.Time})
-				MetricActivePosition.Record(c, float64(p.Size))
-				BrockerPosition.Record(c, float64(p.Size))
-			}
+			// for _, p := range pos {
+			// 	c := GetNewContextFromCandle(Candle{Symbol: aggregated.Original.Symbol, Time: aggregated.Original.Time})
+			// 	MetricActivePosition.Record(c, float64(p.Size))
+			// 	BrockerPosition.Record(c, float64(p.Size))
+			// }
 
 			// Only orders are processed with the raw candles
 			if !aggregated.IsAggregated {

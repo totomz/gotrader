@@ -9,6 +9,7 @@ import (
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
+	"golang.org/x/exp/slog"
 	"log"
 	"math"
 	"os"
@@ -213,7 +214,7 @@ func (exp RedisExporter) ExportView(vd *view.Data) {
 func (exp RedisExporter) FlushBuffer(path string) {
 	metrics := localDb.Metrics
 	if metrics == nil || len(metrics) == 0 {
-		Stderr.Panicf("FlushBuffer() works only in backtesting with Memorysignals")
+		panic("FlushBuffer() works only in backtesting with Memorysignals")
 	}
 
 	fname := fmt.Sprintf("%s.redis", time.Now().Format("20060102150405"))
@@ -248,10 +249,10 @@ func (exp RedisExporter) FlushBuffer(path string) {
 func (exp RedisExporter) Flush() {
 	metrics := localDb.Metrics
 	if metrics == nil || len(metrics) == 0 {
-		Stderr.Panicf("flush() works only in backtesting with Memorysignals")
+		panic("flush() works only in backtesting with Memorysignals")
 	}
 
-	Stdout.Println("REDIS FLUSH ALL")
+	slog.Info("REDIS FLUSH ALL")
 	fres := exp.redis.Do(context.Background(), exp.redis.B().Flushall().Sync().Build())
 	if fres.Error() != nil {
 		panic(fres.Error())

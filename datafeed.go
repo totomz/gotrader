@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"fmt"
+	"golang.org/x/exp/slog"
 	"log"
 	"os"
 	"path/filepath"
@@ -56,7 +57,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 	var latestInsts []time.Time
 
 	stream := make(chan Candle, 24*time.Hour/time.Second)
-	Stdout.Println("Start feeding the candles in the channel")
+	slog.Info("Start feeding the candles in the channel")
 
 	if len(d.Symbols) == 0 {
 		d.Symbols = []Symbol{d.Symbol}
@@ -64,7 +65,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 
 	for _, s := range d.Symbols {
 		file := filepath.Join(d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), s))
-		Stdout.Printf("opening file %s", file)
+		slog.Info("opening file %s", file)
 
 		f, err := os.Open(file)
 
@@ -72,7 +73,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 			// When running tests from the IDE, the working dir is in the folder of the test file.
 			// This porkaround allow us to easily run tests
 			file = filepath.Join("..", d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), s))
-			Stdout.Printf("opening file - retrying %s", file)
+			slog.Info("opening file - retrying %s", file)
 			f, err = os.Open(file)
 			if err != nil {
 				return nil, err
@@ -104,13 +105,13 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 				parts := strings.Split(scanner.Text(), ",")
 				inst, err := time.ParseInLocation("20060102 15:04:05", parts[0], time.Local)
 				if err != nil {
-					Stderr.Println("Can't parse the datetime! Skipping a candle")
+					slog.Error("Can't parse the datetime! Skipping a candle")
 					continue
 				}
 
 				// Skip candles that are in the past (should never happen, but happened with IB csv files)
 				if inst.Before(latestInsts[i]) || inst.Equal(latestInsts[i]) {
-					Stdout.Printf("skipping candle in the past! Last: %v, new:%v", latestInsts[i].String(), inst.String())
+					slog.Info("skipping candle in the past!", "last", latestInsts[i].String(), "new", inst.String())
 					continue
 				}
 				latestInsts[i] = inst
@@ -133,7 +134,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 			}
 		}
 
-		Stdout.Println("closing datafeed")
+		slog.Info("closing datafeed")
 		close(stream)
 
 	}()
@@ -183,7 +184,7 @@ func (d *ZippedCSV) Run() (chan Candle, error) {
 	var latestInsts []time.Time
 
 	stream := make(chan Candle, 24*time.Hour/time.Second)
-	Stdout.Println("Start feeding the candles in the channel")
+	slog.Info("Start feeding the candles in the channel")
 
 	if len(d.Symbols) == 0 {
 		d.Symbols = []Symbol{d.Symbol}
@@ -191,7 +192,7 @@ func (d *ZippedCSV) Run() (chan Candle, error) {
 
 	for _, s := range d.Symbols {
 		file := filepath.Join(d.DataFolder, fmt.Sprintf("%s-%s.csv.gz", d.Sday.Format("20060102"), s))
-		Stdout.Printf("opening file %s", file)
+		slog.Info("opening file", "file", file)
 
 		f, err := os.Open(file)
 
@@ -199,7 +200,7 @@ func (d *ZippedCSV) Run() (chan Candle, error) {
 			// When running tests from the IDE, the working dir is in the folder of the test file.
 			// This porkaround allow us to easily run tests
 			file = filepath.Join("..", d.DataFolder, fmt.Sprintf("%s-%s.csv", d.Sday.Format("20060102"), s))
-			Stdout.Printf("opening file - retrying %s", file)
+			slog.Info("opening file - retrying", "file", file)
 			f, err = os.Open(file)
 			if err != nil {
 				return nil, err
@@ -259,18 +260,18 @@ func (d *ZippedCSV) Run() (chan Candle, error) {
 				parts := strings.Split(line, ",")
 				inst, err := time.ParseInLocation("2006-01-02 15:04:05-07:00", parts[CsvIndexTime], time.Local)
 				if err != nil {
-					Stderr.Println("Can't parse the datetime! Skipping a candle")
+					slog.Error("Can't parse the datetime! Skipping a candle")
 					continue
 				}
 
 				// Skip candles that are in the past (should never happen, but happened with IB csv files)
 				if inst.Before(latestInsts[i]) || inst.Equal(latestInsts[i]) {
-					Stdout.Printf("skipping candle in the past! Last: %v, new:%v", latestInsts[i].String(), inst.String())
+					slog.Error("skipping candle in the past!", "last", latestInsts[i].String(), "new", inst.String())
 					continue
 				}
 
 				if !IsNasdaqTradingTime(inst) {
-					Stdout.Printf("not in NASDAQ trading time inst=%s", inst.String())
+					slog.Error("not in NASDAQ trading time", "inst", inst.String())
 					continue
 				}
 
@@ -294,7 +295,7 @@ func (d *ZippedCSV) Run() (chan Candle, error) {
 			}
 		}
 
-		Stdout.Println("closing datafeed")
+		slog.Info("closing datafeed")
 		close(stream)
 
 	}()
@@ -320,7 +321,7 @@ func IsNasdaqTradingTime(t time.Time) bool {
 	// Check if it's a weekday (Monday=1, ..., Friday=5)
 	weekday := tInNY.Weekday()
 	if weekday < time.Monday || weekday > time.Friday {
-		Stdout.Println(fmt.Sprintf("time outside NASDAW trading hours"))
+		slog.Info("time outside NASDAW trading hours")
 		return false
 	}
 

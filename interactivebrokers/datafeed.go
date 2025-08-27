@@ -1,9 +1,9 @@
 package interactivebrokers
 
 import (
-	"fmt"
 	"github.com/hadrianl/ibapi"
 	"github.com/totomz/gotrader"
+	"log/slog"
 	"time"
 )
 
@@ -18,12 +18,12 @@ func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
 
 	for i := range feed.Contracts {
 		contract := feed.Contracts[i]
-		gotrader.Stdout.Println(fmt.Sprintf("Starting feed %v", contract))
+		slog.Info("starting feed", "symbol", contract)
 		dataChannel, errorChannel := feed.IbClient.SubscribeMarketData5sBar(contract)
 
 		go func() {
 			for bar := range dataChannel {
-				gotrader.Stdout.Printf("Bar: %s", bar.String())
+				slog.Info("got bar", "bar", bar.String())
 
 				// La ritorno al channel
 				candle := gotrader.Candle{
@@ -40,14 +40,14 @@ func (feed *DataFeed) Run() (chan gotrader.Candle, error) {
 				case feedCandles <- candle:
 					// message sent
 				default:
-					gotrader.Stdout.Printf("bar dropped %v", bar)
+					slog.Error("bar dropped", "reason", "channel full", "bar", bar)
 				}
 			}
 		}()
 
 		go func() {
 			for err := range errorChannel {
-				gotrader.Stderr.Printf("ERROR - %v", err)
+				slog.Error("ERROR", "error", err)
 			}
 		}()
 
