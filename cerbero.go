@@ -184,7 +184,6 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 		slog.Info("started strategy routine")
 
 		for aggregated := range aggregatedFeed {
-			ctx := GetNewContextFromCandle(aggregated.AggregatedCandle)
 			// notify the broker that it must process all the orders in the queue
 			// run it synchronously with the datafeed for backtest.
 			// Realtime broker may use this as a "pre-strategy" entry point
@@ -209,12 +208,8 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 			}
 
 			// Once orders are processed, we should update the available cash,
-			// the broker state and all the fisgnals
-			MCandleOpen.Record(ctx, aggregated.AggregatedCandle.Open)
-			MCandleHigh.Record(ctx, aggregated.AggregatedCandle.High)
-			MCandleClose.Record(ctx, aggregated.AggregatedCandle.Close)
-			MCandleLow.Record(ctx, aggregated.AggregatedCandle.Low)
-			MCandleVolume.Record(ctx, float64(aggregated.AggregatedCandle.Volume))
+			// the broker state and all the signals
+			TrackCandleMetric(aggregated.AggregatedCandle)
 			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_open", aggregated.AggregatedCandle.Open)
 			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_high", aggregated.AggregatedCandle.High)
 			// cerbero.Signals.Append(aggregated.AggregatedCandle, "candle_low", aggregated.AggregatedCandle.Low)
@@ -268,4 +263,13 @@ func Low(candles []Candle) []float64 {
 		res[i] = c.Low
 	}
 	return res
+}
+
+func TrackCandleMetric(candle Candle) {
+	ctx := GetNewContextFromCandle(candle)
+	MCandleOpen.Record(ctx, candle.Open)
+	MCandleHigh.Record(ctx, candle.High)
+	MCandleClose.Record(ctx, candle.Close)
+	MCandleLow.Record(ctx, candle.Low)
+	MCandleVolume.Record(ctx, float64(candle.Volume))
 }
