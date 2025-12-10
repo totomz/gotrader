@@ -25,12 +25,20 @@ type Candle struct {
 	Time   time.Time
 }
 
+var locationNewYork = sync.OnceValue[*time.Location](func() *time.Location {
+	location, err := time.LoadLocation("America/New_York")
+	if err != nil {
+		panic(err)
+	}
+	return location
+})
+
 func (candle Candle) TimeStr() string {
 	return fmt.Sprintf("%-5s %v", candle.Symbol, candle.Time.Format("15:04:05"))
 }
 
 func (candle Candle) String() string {
-	return fmt.Sprintf("[%-5s %v] open:%v high:%v close:%v low:%v volume:%v", candle.Symbol, candle.Time.Format("15:04:05"), candle.Open, candle.High, candle.Close, candle.Low, candle.Volume)
+	return fmt.Sprintf("[%-5s %v] open:%v high:%v close:%v low:%v volume:%v", candle.Symbol, candle.Time.In(locationNewYork()).Format("15:04:05"), candle.Open, candle.High, candle.Close, candle.Low, candle.Volume)
 }
 
 // DataFeed provides a stream of Candle.
@@ -134,7 +142,7 @@ func (d *IBZippedCSV) Run() (chan Candle, error) {
 			}
 		}
 
-		slog.Info("closing datafeed")
+		// slog.Info("closing datafeed")
 		close(stream)
 
 	}()
@@ -271,7 +279,7 @@ func (d *ZippedCSV) Run() (chan Candle, error) {
 				}
 
 				if !IsNasdaqTradingTime(inst) {
-					slog.Error("not in NASDAQ trading time", "inst", inst.String())
+					// slog.Error("not in NASDAQ trading time", "inst", inst.String())
 					continue
 				}
 
@@ -295,7 +303,7 @@ func (d *ZippedCSV) Run() (chan Candle, error) {
 			}
 		}
 
-		slog.Info("closing datafeed")
+		// slog.Info("closing datafeed")
 		close(stream)
 
 	}()

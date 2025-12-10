@@ -9,7 +9,6 @@ import (
 	"go.opencensus.io/stats"
 	"go.opencensus.io/stats/view"
 	"go.opencensus.io/tag"
-	"golang.org/x/exp/slog"
 	"log"
 	"math"
 	"os"
@@ -31,6 +30,8 @@ var (
 	MPosition     = NewMetricWithDefaultViews("position")
 
 	KeySymbol, _ = tag.NewKey("symbol")
+
+	DisableMetrics = false
 )
 
 func GetNewContextFromCandle(c Candle) context.Context {
@@ -71,12 +72,19 @@ type ctxKey struct{}
 var candleCtxKey = ctxKey{}
 
 func (m *Metric) RecordBatch(candles []Candle, value float64) {
+	if DisableMetrics {
+		return
+	}
 	for _, c := range candles {
 		localDb.Append(c, m.Name, value)
 	}
 }
 
 func (m *Metric) Record(ctx context.Context, value float64) {
+	if DisableMetrics {
+		return
+	}
+
 	stats.Record(ctx, m.measure.M(value))
 
 	c := ctx.Value(candleCtxKey)
@@ -89,6 +97,10 @@ func (m *Metric) Record(ctx context.Context, value float64) {
 // Get the i-th metric. Metrics are saved in their chronological order. m.Get(0) returns the last value recorder by the metric m.
 // m.Get(-3) return the value inserted 3 "step" ago. A step is defined as a full eval() cycle.
 func (m *Metric) Get(ctx context.Context, step int) (float64, error) {
+	if DisableMetrics {
+		return 0, nil
+	}
+
 	i := int(math.Abs(float64(step)))
 	c := ctx.Value(candleCtxKey)
 	return localDb.Get(c.(Candle), m.Name, i)
@@ -117,6 +129,10 @@ type TimeSerie struct {
 
 // Append an element to the end of this ts
 func (ts *TimeSerie) Append(candle Candle, value float64) {
+	if DisableMetrics {
+		return
+	}
+
 	ts.X = append(ts.X, candle.Time)
 	ts.Y = append(ts.Y, value)
 }
@@ -127,6 +143,9 @@ type MemorySignals struct {
 
 // Append a metric to a given signal.
 func (s *MemorySignals) Append(candle Candle, name string, value float64) {
+	if DisableMetrics {
+		return
+	}
 
 	if s.Metrics == nil {
 		s.Metrics = map[string]*TimeSerie{}
@@ -146,6 +165,10 @@ func (s *MemorySignals) Append(candle Candle, name string, value float64) {
 }
 
 func (s *MemorySignals) Get(candle Candle, name string, i int) (float64, error) {
+	if DisableMetrics {
+		return 0, nil
+	}
+
 	ts, found := s.Metrics[string(candle.Symbol)+"."+name]
 	if !found {
 		return 0, ErrMetricNotFound
@@ -212,6 +235,10 @@ func (exp RedisExporter) ExportView(vd *view.Data) {
 
 // FlushBuffer saves the commands in a .redis file, that can be imported later
 func (exp RedisExporter) FlushBuffer(path string) {
+	if DisableMetrics {
+		return
+	}
+
 	metrics := localDb.Metrics
 	if metrics == nil || len(metrics) == 0 {
 		panic("FlushBuffer() works only in backtesting with Memorysignals")
@@ -247,16 +274,28 @@ func (exp RedisExporter) FlushBuffer(path string) {
 }
 
 func (exp RedisExporter) Flush() {
+	if DisableMetrics {
+		return
+	}
+
 	metrics := localDb.Metrics
 	if metrics == nil || len(metrics) == 0 {
 		panic("flush() works only in backtesting with Memorysignals")
 	}
 
-	slog.Info("REDIS FLUSH ALL")
-	fres := exp.redis.Do(context.Background(), exp.redis.B().Flushall().Sync().Build())
-	if fres.Error() != nil {
-		panic(fres.Error())
-	}
+	// slog.Info("REDIS FLUSH ALL")
+	// fres := exp.redis.Do(context.Background(), exp.redis.B().Flushall().Sync().Build())
+	// if fres.Error() != nil {
+	// 	panic(fres.Error())
+	// }
+	// for mKey, mValue := range metrics {
+	// 	createCmd := exp.redis.B().TsCreate().
+	// 		Key(mKey).
+	// 		DuplicatePolicyLast().  // sovrascrive con l'ultimo valore
+	// 		Build()
+	//
+	// 	exp.redis.Do(context.Background(), createCmd)
+	// }
 
 	var cmds []rueidis.Completed
 	// cache := map[string]bool{}
@@ -271,7 +310,13 @@ func (exp RedisExporter) Flush() {
 			// 	panic(fres.Error())
 			// }
 
-			c := exp.redis.B().TsAdd().Key(fmt.Sprintf("gotrader.%s", mKey)).Timestamp(mValue.X[i].UnixMilli()).Value(mValue.Y[i]).Build()
+			c := exp.redis.B().
+				TsAdd().
+				Key(fmt.Sprintf("gotrader.%s", mKey)).
+				Timestamp(mValue.X[i].UnixMilli()).
+				Value(mValue.Y[i]).
+				OnDuplicateLast().
+				Build()
 			cmds = append(cmds, c)
 		}
 
@@ -293,6 +338,14 @@ func (exp RedisExporter) Flush() {
 
 	// Flush() menas that all metrics are sent and
 	localDb.Metrics = map[string]*TimeSerie{}
+}
+
+func (exp RedisExporter) Set(key string, value float64) {
+	c := exp.redis.B().
+		Set().Key(fmt.Sprintf("gotrader.%s", key)).
+		Value(fmt.Sprintf("%4f", value)).
+		Build()
+	exp.redis.Do(context.Background(), c)
 }
 
 func DefaultViewToName(vd *view.Data, row *view.Row) string {
