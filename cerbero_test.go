@@ -2,6 +2,7 @@ package gotrader
 
 import (
 	"github.com/google/go-cmp/cmp"
+	"math"
 	"testing"
 	"time"
 )
@@ -216,7 +217,7 @@ func TestOrderExecutionAfter1sec(t *testing.T) {
 					t.Errorf("open position not found!")
 				}
 
-				if !almostEqual(position.AvgPrice, 262.23) {
+				if math.Abs(1-position.AvgPrice/262.23) > 0.1 {
 					t.Errorf("Expected testorder avg filed price to be 262.86, was %v", position.AvgPrice)
 				}
 

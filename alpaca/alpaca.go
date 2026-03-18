@@ -168,7 +168,7 @@ func (ab *AlpacaBroker) GetPosition(symbol gotrader.Symbol) gotrader.Position {
 			return zeroVal
 		}
 
-		slog.Error("error getting position for %v: %v", symbol, err)
+		slog.Error("error getting position", "symbol", symbol, "error", err)
 		return zeroVal
 	}
 

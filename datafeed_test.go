@@ -182,13 +182,9 @@ func TestZippedCSV_ReadFile(t *testing.T) {
 		println(candle.String())
 	}
 
-	// How many lines? The csv has 1 line for each second.
-	// How many seconds in the time interval?
-	a := time.Date(2021, 6, 15, 15, 30, 00, 00, time.Local)
-	b := time.Date(2021, 6, 15, 21, 59, 59, 00, time.Local)
-	rows := b.Sub(a).Seconds() + 1 // +1 because seconds starts at 0, line count at 1
-
-	if len(candles) != int(rows) {
+	// trading hours: [9am, 4pm)
+	// a line every 5 seconds
+	if len(candles) != 4680 {
 		t.Fatalf("Expected 25200 candles got %v", len(candles))
 	}
 

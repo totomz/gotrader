@@ -1,16 +1,24 @@
 #!/usr/bin/env bash
 
+set -e
+
+# utilities functions, keep as first import
+source ./functions.sh
+
+
 COMMIT="$(git rev-parse --abbrev-ref HEAD)-$(gitver)"
 TIMESTAMP=$(date +%FT%T)
 
 
 build() {
+  ## build gotrader
   go get -t -v  ./...
 #  go vet ./...
 	go build -ldflags "-X main.build=${TIMESTAMP}-${COMMIT}" -o bin/gotrader ./
 }
 
-test() {
+test-service() {
+  ## run tests excluding the external API packages (like IB
   build  
   # shellcheck disable=SC2046
   go test -parallel 8 -count=1 -cover $(go list ./... | grep -v /interactivebrokers)
@@ -28,3 +36,54 @@ redis-cli() {
 signals-start() {
   docker-compose up 
 }
+
+###################################################
+# Invoke the target - do not edit after this line #
+###################################################
+show-help() {
+  echo "Usage: $(basename "$0") <command> [--var=value ...]"
+  echo ""
+  awk '
+    /^[[:alpha:]][[:alnum:]_-]*\(\)/ {
+      if (fname && desc != "") { printf "  \033[33m%-20s\033[0m\n%s\n", fname, desc }
+      fname = $0; gsub(/\(\).*/, "", fname)
+      desc = ""; next
+    }
+    fname && /^[[:space:]]*##/ {
+      line = $0; gsub(/^[[:space:]]*##[[:space:]]?/, "", line)
+      desc = desc "    " line "\n"; next
+    }
+    fname && /^[[:space:]]*\{?[[:space:]]*$/ { next }
+    fname && desc == ""                       { fname = "" }
+    END { if (fname && desc != "") printf "  \033[33m%-20s\033[0m\n%s\n", fname, desc }
+  ' "$0"
+}
+
+# Parse arguments.
+# The first argument is the target to invoke, , then it expects variables
+echo "alice"
+TARGET=$1
+shift || true
+
+echo "bob [${TARGET}]"
+if [[ -z "$TARGET" || "$TARGET" == "-h" || "$TARGET" == "--help" ]]; then
+  show-help
+  exit 0
+fi
+
+while [[ $# -gt 0 ]]; do
+  v=$1
+  shift
+  if [[ $v == --* ]]; then
+#    echo "parsing $v"
+    key=$(echo "$v" | awk -F= '{print $1}' | sed 's/-//g')
+    value=$(echo "$v" | awk -F= '{print $2}')
+#    echo "    -> parameter key: ${key}"
+#    echo "    -> parameter value: ${value}"
+
+    eval "${key}=${value}"
+  fi
+done
+
+#echo "target=[${TARGET}] [${env}]"
+eval "${TARGET}"
