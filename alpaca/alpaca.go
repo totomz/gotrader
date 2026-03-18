@@ -3,7 +3,7 @@ package alpacabroker
 import (
 	"context"
 	"fmt"
-	"github.com/alpacahq/alpaca-trade-api-go/v2/alpaca"
+	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 	"github.com/shopspring/decimal"
 	"github.com/totomz/gotrader"
 	"log/slog"
@@ -11,7 +11,7 @@ import (
 )
 
 type AlpacaBroker struct {
-	client alpaca.Client
+	client *alpaca.Client
 }
 
 var (
@@ -23,8 +23,8 @@ var (
 func NewAlpacaBroker(apiKey, apiSecret, baseUrl string) *AlpacaBroker {
 
 	client := alpaca.NewClient(alpaca.ClientOpts{
-		ApiKey:    apiKey,
-		ApiSecret: apiSecret,
+		APIKey:    apiKey,
+		APISecret: apiSecret,
 		BaseURL:   baseUrl,
 	})
 
@@ -34,7 +34,7 @@ func NewAlpacaBroker(apiKey, apiSecret, baseUrl string) *AlpacaBroker {
 }
 
 func (ab *AlpacaBroker) SignalsPortfolioStatus() {
-	positions, err := ab.client.ListPositions()
+	positions, err := ab.client.GetPositions()
 	if err != nil {
 		slog.Error("polling can't list positions", "error", err)
 	}
@@ -42,7 +42,10 @@ func (ab *AlpacaBroker) SignalsPortfolioStatus() {
 	totalAssets := ab.AvailableCash()
 
 	for _, p := range positions {
-		pl := p.UnrealizedPL.InexactFloat64()
+		pl := 0.0
+		if p.UnrealizedPL != nil {
+			pl = p.UnrealizedPL.InexactFloat64()
+		}
 		totalAssets += pl
 		MAlpacaPl.Record(ctx, pl)
 		MAlpacaQty.Record(ctx, p.Qty.InexactFloat64())
@@ -85,20 +88,19 @@ func (ab *AlpacaBroker) SubmitOrder(_ gotrader.Candle, order gotrader.Order) (st
 	// 	ab.Stderr.Printf("alpaca orders are disabled!")
 	// 	return "", nil
 	// }
-	symbl := string(order.Symbol)
 	qty := decimal.NewFromInt(order.Size)
-	side := "buy"
+	side := alpaca.Buy
 	sizeSide := float64(order.Size)
 
 	if order.Type == gotrader.OrderSell {
-		side = "sell"
+		side = alpaca.Sell
 		sizeSide *= -1
 	}
 
 	orderRequest := alpaca.PlaceOrderRequest{
-		AssetKey:    &symbl,
+		Symbol:      string(order.Symbol),
 		Qty:         &qty,
-		Side:        alpaca.Side(side),
+		Side:        side,
 		Type:        "market",
 		TimeInForce: "day",
 	}
@@ -108,7 +110,7 @@ func (ab *AlpacaBroker) SubmitOrder(_ gotrader.Candle, order gotrader.Order) (st
 		return "", err
 	}
 
-	slog.Info("submitted order", "order", OrderToString(placedOrder), "symbol", order.Symbol)
+	slog.Info("submitted order", "order", OrderToString(placedOrder), "symbol", order.Symbol, "sizeSide", sizeSide)
 
 	// The order is submitted, but we don't know yet the
 	// avgFlledPrice, neither if it has been fullfiled or not.
@@ -148,7 +150,7 @@ func (ab *AlpacaBroker) GetOrderByID(OrderID string) (gotrader.Order, error) {
 		o.Status = gotrader.OrderStatusAccepted
 	}
 
-	if order.Side == "sell" {
+	if order.Side == alpaca.Sell {
 		o.Type = gotrader.OrderSell
 	}
 
@@ -178,7 +180,7 @@ func (ab *AlpacaBroker) GetPosition(symbol gotrader.Symbol) gotrader.Position {
 func (ab *AlpacaBroker) ClosePosition(position gotrader.Position) error {
 	symbol := string(position.Symbol)
 
-	err := ab.client.ClosePosition(symbol)
+	_, err := ab.client.ClosePosition(symbol, alpaca.ClosePositionRequest{})
 	if err != nil {
 		return err
 	}
@@ -204,7 +206,7 @@ func (ab *AlpacaBroker) ClosePosition(position gotrader.Position) error {
 
 func (ab *AlpacaBroker) GetPositions() []gotrader.Position {
 	var zeroVal []gotrader.Position
-	positions, err := ab.client.ListPositions()
+	positions, err := ab.client.GetPositions()
 	if err != nil {
 		slog.Error("error getting positions", "error", err)
 		return zeroVal
@@ -222,7 +224,7 @@ func (ab *AlpacaBroker) GetPositions() []gotrader.Position {
 func PositionMap(input *alpaca.Position) gotrader.Position {
 	return gotrader.Position{
 		Size:     input.Qty.IntPart(),
-		AvgPrice: input.EntryPrice.InexactFloat64(),
+		AvgPrice: input.AvgEntryPrice.InexactFloat64(),
 		Symbol:   gotrader.Symbol(input.Symbol),
 	}
 }

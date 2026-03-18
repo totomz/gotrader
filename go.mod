@@ -3,7 +3,7 @@ module github.com/totomz/gotrader
 go 1.24.0
 
 require (
-	github.com/alpacahq/alpaca-trade-api-go/v2 v2.5.0
+	github.com/alpacahq/alpaca-trade-api-go/v3 v3.9.1
 	github.com/google/go-cmp v0.7.0
 	github.com/hadrianl/ibapi v0.0.0-20210428041841-65ae418d9353
 	github.com/joho/godotenv v1.4.0
@@ -23,7 +23,6 @@ require (
 
 require (
 	cloud.google.com/go v0.123.0 // indirect
-	github.com/alpacahq/alpaca-trade-api-go/v3 v3.9.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.9.2 // indirect
