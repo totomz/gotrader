@@ -204,15 +204,6 @@ func NewRedisExporter(redisHostPort string) (*RedisExporter, error) {
 	}
 	println(fmt.Sprintf("PING? %s", string(daje)))
 
-	set := client.B().Set().Key("dio").Value("cane").Build()
-	resp2 := client.Do(context.Background(), set)
-
-	daje2, err := resp2.AsBytes()
-	if err != nil {
-		panic(err)
-	}
-	println(fmt.Sprintf("PING? %s", string(daje2)))
-
 	return &RedisExporter{
 		MetricNameGenerator: DefaultViewToName,
 		redis:               client,
