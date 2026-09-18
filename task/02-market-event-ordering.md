@@ -1,17 +1,17 @@
-# Task 02 - MarketEvent and total ordering
+# Task 02 - MarketEvent envelope
 
 Spec: `doc/datamodel.md` section 4.
 
 ## Scope
 - In `tick.go` (package `gotrader`): add `MarketEvent` with helpers `TS()`, `Symbol()`, `IsTrade()`, `IsQuote()`.
-- Add `LessMarketEvent(a, b MarketEvent) bool` implementing the four ordering rules.
+- No ordering or merging logic: that belongs to the feed implementations (task 06).
 
 ## Out of scope
 - Feeds, channels, Cerbero.
 
 ## Definition of Done
-Sorting an arbitrary mixed slice of trade and quote events with `LessMarketEvent` produces the order defined in datamodel section 4, verified by a unit test.
+`MarketEvent` helpers return the values of the wrapped trade or quote, verified by a unit test with one trade event and one quote event.
 
 ## Semantic tests
-1. Given events (in scrambled input order): trade TS=10 seq=2, quote TS=10 seq=9, trade TS=10 seq=1, quote TS=5 seq=50, trade AAPL TS=10 seq=1 vs trade MSFT TS=10 seq=1. Expected sorted order: quote TS=5, quote TS=10, trade TS=10 seq=1 AAPL, trade TS=10 seq=1 MSFT, trade TS=10 seq=2.
-2. `LessMarketEvent(a, a)` is false for both a trade and a quote (strict weak ordering).
+1. An event wrapping a trade: `IsTrade()` true, `IsQuote()` false, `TS()` and `Symbol()` equal to the trade's.
+2. An event wrapping a quote: `IsQuote()` true, `IsTrade()` false, `TS()` and `Symbol()` equal to the quote's.

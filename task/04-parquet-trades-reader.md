@@ -3,11 +3,11 @@
 Spec: `doc/datamodel.md` sections 2 and 6.
 
 ## Scope
-- New package `massive` (folder `massive/`).
+- Code goes in `datafeed.go` (package `gotrader`), next to `ZippedCSV`. No vendor package.
 - Add the Parquet dependency `github.com/parquet-go/parquet-go` to `go.mod`. Verify the API against the module source in the module cache, do not assume it.
-- `PathFor(kind, dataFolder string, day time.Time, ticker gotrader.Symbol) string` (kind is `"trades"` or `"quotes"`), the only place where the layout is defined.
-- `ReadTrades(path string, out chan<- gotrader.Trade) error`: streams the rows of one trades file into `out` (row-group by row-group, not the whole file in memory), maps columns to `gotrader.Trade`, verifies `(ts, seq)` monotonicity (skip + `slog.Error` on violation). Closes nothing: the caller owns `out`.
-- Test helper `writeTradesFixture(t, path, trades []gotrader.Trade)` that writes a Parquet file with the schema of section 6, used by tests of this and later tasks.
+- `parquetPathFor(kind, dataFolder string, day time.Time, ticker Symbol) string` (kind is `"trades"` or `"quotes"`), the only place where the layout is defined.
+- `readParquetTrades(path string, out chan<- Trade) error`: streams the rows of one trades file into `out` (row-group by row-group, not the whole file in memory), maps columns to `Trade`, verifies `(ts, seq)` monotonicity (skip + `slog.Error` on violation). No RTH/tape/condition filtering. Closes nothing: the caller owns `out`.
+- Test helper `writeTradesFixture(t, path, trades []Trade)` that writes a Parquet file with the schema of section 6, used by tests of this and later tasks.
 
 ## Out of scope
 - Quotes, merging, TickFeed implementation.

@@ -3,8 +3,8 @@
 Spec: `doc/datamodel.md` sections 3 and 6.
 
 ## Scope
-- In package `massive`: `ReadQuotes(path string, out chan<- gotrader.Quote) error`, same behaviour as `ReadTrades` (streaming, monotonicity check, column mapping in one function).
-- Test helper `writeQuotesFixture(t, path, quotes []gotrader.Quote)`.
+- In `datafeed.go`: `readParquetQuotes(path string, out chan<- Quote) error`, same behaviour as `readParquetTrades` (streaming, monotonicity check, column mapping in one function).
+- Test helper `writeQuotesFixture(t, path, quotes []Quote)`.
 
 ## Out of scope
 - Merging, TickFeed implementation.

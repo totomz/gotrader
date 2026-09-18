@@ -6,8 +6,8 @@ Decisions D1..D12 refer to the project decision table (5-second directional pred
 ## 1. Conventions
 
 - All timestamps are **Unix milliseconds** (`int64`), D2. Truncation, never rounding.
-- Only **RTH** (09:30:00-16:00:00 ET) and **tape 3** rows reach gotrader, D3/D4. The normalization is done upstream by the dataset builder; gotrader does not re-filter.
-- The historical input is the **normalized Parquet** (D10), one file per `date/ticker`, for trades and for quotes. gotrader never reads the raw Massive `csv.gz` flat files.
+- gotrader core (Cerbero, CandleBuilder, broker) **does not filter anything**: no RTH, tape or condition filtering. Filtering, when wanted, is done by the `TickFeed` implementation or by the strategy.
+- The historical input of this project is the **normalized Parquet** (D10), one file per `date/ticker`, for trades and for quotes. It is read by a `TickFeed` implementation (`GenericParquetTrades`, in `datafeed.go`, vendor-neutral like `ZippedCSV`), not by the core.
 - `UpdatesLast`, `UpdatesVolume`, `IsRTH` are **stored** in the Parquet, already derived upstream (D8). gotrader does not interpret SIP condition codes.
 
 ## 2. `Trade` (package `gotrader`, file `tick.go`)
@@ -53,7 +53,9 @@ Methods (not fields):
 
 Invalid quotes are delivered to the strategy (so it can count them, feature `quote_invalid_count`) but they MUST NOT be used to update any NBBO book kept by gotrader.
 
-## 4. `MarketEvent` and ordering
+## 4. `MarketEvent`
+
+A Go channel carries one type, so the stream uses an envelope holding either a trade or a quote:
 
 ```go
 // MarketEvent carries exactly one of Trade or Quote.
@@ -63,35 +65,36 @@ type MarketEvent struct {
 }
 ```
 
-Helpers: `TS() int64`, `Symbol() Symbol`, `IsTrade() bool`, `IsQuote() bool`.
-
-Total order `LessMarketEvent(a, b MarketEvent) bool`, applied by every feed and by any merge:
-
-1. `TS` ascending
-2. same `TS`: `Quote` before `Trade` (the book state is known before the print)
-3. same `TS` and same kind: `Seq` ascending
-4. still equal: `Ticker` ascending (determinism across symbols)
+Helpers: `TS() int64`, `Symbol() Symbol`, `IsTrade() bool`, `IsQuote() bool`. No ordering logic lives here.
 
 ## 5. `TickFeed` interface (file `tickfeed.go`)
 
 ```go
 // TickFeed provides one ordered stream of trades and quotes for all the requested symbols.
 type TickFeed interface {
-    // Run starts a goroutine that pushes MarketEvent in the returned channel, ordered by LessMarketEvent,
+    // Run starts a goroutine that pushes MarketEvent in the returned channel, ordered by time,
     // and closes the channel when the data is over. The buffer must hold at least 100_000 events.
     Run() (chan MarketEvent, error)
 }
 ```
 
-Implementations: `massive.ParquetFeed` (historical, this project). A Redpanda feed (realtime) will come later and is out of scope.
+Ordering contract, responsibility of every implementation (Cerbero and strategies trust it):
 
-## 6. Parquet layout (package `massive`)
+1. `TS` ascending
+2. same `TS`: `Quote` before `Trade` (the book state is known before the print)
+3. same `TS` and same kind: `Seq` ascending
+4. still equal: `Ticker` ascending (determinism across symbols)
+
+Implementations: `GenericParquetTrades` in `datafeed.go` (historical, vendor-neutral). A Redpanda feed (realtime) will come later and is out of scope.
+
+## 6. Parquet layout (`GenericParquetTrades`, file `datafeed.go`)
 
 - Trades: `<DataFolder>/trades/<YYYY-MM-DD>/<TICKER>.parquet`
 - Quotes: `<DataFolder>/quotes/<YYYY-MM-DD>/<TICKER>.parquet`
-- The layout is produced by one function `PathFor(kind, dataFolder, day, ticker) string` so it can be changed in one place.
+- The layout is produced by one function `parquetPathFor(kind, dataFolder, day, ticker) string` so it can be changed in one place.
 - Columns as in sections 2 and 3, snake_case, physical types: `ticker` BYTE_ARRAY/UTF8, `ts`/`participant_ts`/`seq`/`size`/`bid_size`/`ask_size` INT64, prices DOUBLE, small ints INT32, lists LIST<INT32>, flags BOOLEAN.
 - Rows inside a file are **already sorted** by `(ts, seq)`. The reader verifies monotonicity: an out-of-order row is skipped and logged with `slog.Error`, never re-sorted.
+- The reader delivers every row as-is: no RTH/tape/condition filtering. `IsRTH` and the flags are passed through for the strategy to use.
 - A missing quotes file for a ticker is **not** an error: the feed runs with trades only and logs it with `slog.Info`. A missing trades file **is** an error.
 
 ## 7. Candles from trades (file `candlebuilder.go`)
