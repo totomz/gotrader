@@ -107,7 +107,6 @@ type TickBroker interface {
 	ProcessQuote(quote Quote)
 }
 
-// DefaultBacktestLatency is the latency used by BacktestBrocker when Latency is not set
 const DefaultBacktestLatency = 200 * time.Millisecond
 
 type EvaluateCommissions func(order Order, price float64) float64
@@ -120,9 +119,8 @@ type BacktestBrocker struct {
 	OrderMap            map[string]*Order
 	Portfolio           map[Symbol]Position
 	EvalCommissions     EvaluateCommissions
-	// Latency is the delay between the submission of an order and the first trade that can fill it
-	Latency       time.Duration
-	lastEventTime time.Time
+	Latency             time.Duration
+	lastEventTime       time.Time
 	// Stdout              *log.Logger
 	// Stderr              *log.Logger
 	// Signals             Signal
@@ -220,8 +218,6 @@ func (b *BacktestBrocker) ProcessOrders(candle Candle) []Order {
 	return orderPlaced
 }
 
-// ProcessTrade fills the pending orders of the traded symbol that have been submitted
-// at least Latency before this trade.
 func (b *BacktestBrocker) ProcessTrade(trade Trade) []Order {
 	b.lastEventTime = trade.Time()
 

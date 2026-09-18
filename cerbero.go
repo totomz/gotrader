@@ -1,6 +1,8 @@
 package gotrader
 
 import (
+	"errors"
+	"fmt"
 	"go.opencensus.io/stats/view"
 	"golang.org/x/exp/slog"
 	"sync"
@@ -130,14 +132,26 @@ type Cerbero struct {
 	Broker              Broker
 	Strategy            Strategy
 	DataFeed            DataFeed
+	TickFeed            TickFeed
 	TimeAggregationFunc TimeAggregation
+	CandleSlotMs        int64
 	// Stdout              *log.Logger
 	// Stderr              *log.Logger
 	registeredViews []*view.View
 	// Signals             Signal
 }
 
+var ErrFeedConflict = errors.New("DataFeed and TickFeed can not be used together")
+
 func (cerbero *Cerbero) Run() (ExecutionResult, error) {
+
+	if cerbero.DataFeed != nil && cerbero.TickFeed != nil {
+		return ExecutionResult{}, ErrFeedConflict
+	}
+
+	if cerbero.TickFeed != nil {
+		return cerbero.runTicks()
+	}
 
 	var wg sync.WaitGroup
 	start := time.Now()
@@ -231,6 +245,72 @@ func (cerbero *Cerbero) Run() (ExecutionResult, error) {
 	execStats.FinalCash = cerbero.Broker.AvailableCash()
 	execStats.PL = (execStats.FinalCash/execStats.InitialCash - 1) * 100
 	return execStats, nil
+}
+
+func (cerbero *Cerbero) runTicks() (ExecutionResult, error) {
+
+	start := time.Now()
+	execStats := ExecutionResult{
+		InitialCash: cerbero.Broker.AvailableCash(),
+	}
+
+	// Set default values
+	if cerbero.CandleSlotMs == 0 {
+		cerbero.CandleSlotMs = defaultSlotMs
+	}
+
+	cerbero.Strategy.Initialize(cerbero)
+
+	stream, err := cerbero.TickFeed.Run()
+	if err != nil {
+		return ExecutionResult{}, fmt.Errorf("can not run the tick feed: %w", err)
+	}
+
+	builder := NewCandleBuilder(cerbero.CandleSlotMs)
+	tickBroker, brokerIsTickBroker := cerbero.Broker.(TickBroker)
+	var candles []Candle
+
+	slog.Info("started tick pipeline", "candle_slot_ms", cerbero.CandleSlotMs, "tick_broker", brokerIsTickBroker)
+
+	for event := range stream {
+
+		if brokerIsTickBroker && event.Trade != nil {
+			_ = tickBroker.ProcessTrade(*event.Trade)
+		}
+
+		if brokerIsTickBroker && event.Quote != nil {
+			tickBroker.ProcessQuote(*event.Quote)
+		}
+
+		closed := builder.Advance(event.Symbol(), event.TS())
+		if event.Trade != nil {
+			closed = append(closed, builder.Push(*event.Trade)...)
+		}
+
+		candles = cerbero.evalClosedCandles(candles, closed)
+
+		dispatchEvent(cerbero.Strategy, event)
+	}
+
+	candles = cerbero.evalClosedCandles(candles, builder.Flush())
+
+	cerbero.Strategy.Shutdown()
+	cerbero.Broker.Shutdown()
+
+	execStats.TotalTime = time.Now().Sub(start)
+	execStats.TotalTimeString = execStats.TotalTime.String()
+	execStats.FinalCash = cerbero.Broker.AvailableCash()
+	execStats.PL = (execStats.FinalCash/execStats.InitialCash - 1) * 100
+	return execStats, nil
+}
+
+func (cerbero *Cerbero) evalClosedCandles(history []Candle, closed []Candle) []Candle {
+	for _, candle := range closed {
+		TrackCandleMetric(candle)
+		history = append(history, candle)
+		cerbero.Strategy.Eval(history)
+	}
+	return history
 }
 
 func Open(candles []Candle) []float64 {

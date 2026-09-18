@@ -1,6 +1,7 @@
 package gotrader
 
 import (
+	"fmt"
 	"github.com/google/go-cmp/cmp"
 	"math"
 	"testing"
@@ -89,6 +90,9 @@ func TestTimeAggregation_15Sec(t *testing.T) {
 type testMockStrategy struct {
 	EvalImpl       func(candles []Candle)
 	InitializeImpl func(cerbero *Cerbero)
+	OnTradeImpl    func(trade Trade)
+	OnQuoteImpl    func(quote Quote)
+	ShutdownImpl   func()
 }
 
 func (s *testMockStrategy) Eval(candles []Candle) {
@@ -104,7 +108,21 @@ func (s *testMockStrategy) Initialize(broker *Cerbero) {
 }
 
 func (s *testMockStrategy) Shutdown() {
+	if s.ShutdownImpl != nil {
+		s.ShutdownImpl()
+	}
+}
 
+func (s *testMockStrategy) OnTrade(trade Trade) {
+	if s.OnTradeImpl != nil {
+		s.OnTradeImpl(trade)
+	}
+}
+
+func (s *testMockStrategy) OnQuote(quote Quote) {
+	if s.OnQuoteImpl != nil {
+		s.OnQuoteImpl(quote)
+	}
 }
 
 // func (s *testMockStrategy) GetSignals() *Signal {
@@ -263,4 +281,120 @@ func TestOrderExecutionAfter1sec(t *testing.T) {
 		t.Fatalf("final cahs does not match, got %v", _broker.AvailableCash())
 	}
 
+}
+
+func testTickEvents(symbol Symbol, day time.Time) []MarketEvent {
+	ts := func(sec, ms int) int64 {
+		return day.Add(time.Duration(sec)*time.Second + time.Duration(ms)*time.Millisecond).UnixMilli()
+	}
+
+	return []MarketEvent{
+		{Quote: &Quote{Ticker: symbol, TS: ts(0, 0), Seq: 1, BidPrice: 99.9, AskPrice: 100.1, BidSize: 10, AskSize: 10}},
+		{Trade: &Trade{Ticker: symbol, TS: ts(1, 0), Seq: 2, Price: 100, Size: 5, UpdatesLast: true, UpdatesVolume: true}},
+		{Trade: &Trade{Ticker: symbol, TS: ts(3, 0), Seq: 3, Price: 101, Size: 7, UpdatesLast: true, UpdatesVolume: true}},
+		{Trade: &Trade{Ticker: symbol, TS: ts(6, 0), Seq: 4, Price: 102, Size: 3, UpdatesLast: true, UpdatesVolume: true}},
+	}
+}
+
+func TestCerberoTickPipelineCallbackSequence(t *testing.T) {
+	t.Parallel()
+
+	symbol := Symbol("AAPL")
+	day := time.Date(2021, 1, 11, 9, 30, 0, 0, time.UTC)
+	var got []string
+
+	strategy := testMockStrategy{
+		EvalImpl: func(candles []Candle) {
+			latest := candles[len(candles)-1]
+			got = append(got, fmt.Sprintf("Eval %v %v", len(candles), latest.Time.Format("15:04:05.000")))
+		},
+		OnTradeImpl: func(trade Trade) {
+			got = append(got, fmt.Sprintf("OnTrade %v", trade.Time().Format("15:04:05.000")))
+		},
+		OnQuoteImpl: func(quote Quote) {
+			got = append(got, fmt.Sprintf("OnQuote %v", quote.Time().Format("15:04:05.000")))
+		},
+		ShutdownImpl: func() {
+			got = append(got, "Shutdown")
+		},
+	}
+
+	service := Cerbero{
+		TickFeed: &SliceTickFeed{Events: testTickEvents(symbol, day)},
+		Broker: &BacktestBrocker{
+			BrokerAvailableCash: 30000,
+			OrderMap:            map[string]*Order{},
+			Portfolio:           map[Symbol]Position{},
+			EvalCommissions:     Nocommissions,
+		},
+		Strategy: &strategy,
+	}
+
+	_, err := service.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{
+		"OnQuote 09:30:00.000",
+		"OnTrade 09:30:01.000",
+		"OnTrade 09:30:03.000",
+		"Eval 1 09:30:00.000",
+		"OnTrade 09:30:06.000",
+		"Eval 2 09:30:05.000",
+		"Shutdown",
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("tick pipeline callbacks mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestCerberoTickPipelineOrderFilledWithLatency(t *testing.T) {
+	t.Parallel()
+
+	symbol := Symbol("AAPL")
+	day := time.Date(2021, 1, 11, 9, 30, 0, 0, time.UTC)
+	var broker Broker
+	var position Position
+
+	strategy := testMockStrategy{
+		InitializeImpl: func(cerbero *Cerbero) {
+			broker = cerbero.Broker
+		},
+		OnTradeImpl: func(trade Trade) {
+			if trade.TS == day.Add(1*time.Second).UnixMilli() {
+				_, err := broker.SubmitOrder(Candle{}, Order{Size: 1, Symbol: symbol, Type: OrderBuy})
+				if err != nil {
+					t.Errorf("error buy order -- %v", err)
+				}
+			}
+
+			if trade.TS == day.Add(3*time.Second).UnixMilli() {
+				position = broker.GetPosition(symbol)
+			}
+		},
+	}
+
+	service := Cerbero{
+		TickFeed: &SliceTickFeed{Events: testTickEvents(symbol, day)},
+		Broker: &BacktestBrocker{
+			BrokerAvailableCash: 30000,
+			OrderMap:            map[string]*Order{},
+			Portfolio:           map[Symbol]Position{},
+			EvalCommissions:     Nocommissions,
+			Latency:             200 * time.Millisecond,
+		},
+		Strategy: &strategy,
+	}
+
+	_, err := service.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := Position{Size: 1, AvgPrice: 101, Symbol: symbol}
+	if diff := cmp.Diff(want, position); diff != "" {
+		t.Errorf("position at 09:30:03 mismatch (-want +got):\n%s", diff)
+	}
 }
