@@ -53,8 +53,6 @@ func (state *candleState) candle(symbol Symbol) Candle {
 	}
 }
 
-// Advance closes the candle of symbol when ts belongs to a following slot, and fills
-// the slots with no trades with a carry-forward candle built on the last close.
 func (b *CandleBuilder) Advance(symbol Symbol, ts int64) []Candle {
 	state, found := b.states[symbol]
 	if !found {

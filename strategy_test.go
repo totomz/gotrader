@@ -6,6 +6,8 @@ import (
 	"go.opencensus.io/tag"
 	"testing"
 	"time"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 // Eval evaluate the strategy. candles[0] is the latest, candles[1] is the latest - 1, and so on
@@ -153,4 +155,66 @@ func TestShortOrders(t *testing.T) {
 		t.Errorf("expected a gain, got %f", res.FinalCash-res.InitialCash)
 	}
 
+}
+
+type mockPlainStrategy struct {
+	MockStrategy
+}
+
+type mockTradeOnlyStrategy struct {
+	MockStrategy
+	trades []Trade
+}
+
+func (s *mockTradeOnlyStrategy) OnTrade(trade Trade) {
+	s.trades = append(s.trades, trade)
+}
+
+type mockTradeQuoteStrategy struct {
+	MockStrategy
+	trades []Trade
+	quotes []Quote
+}
+
+func (s *mockTradeQuoteStrategy) OnTrade(trade Trade) {
+	s.trades = append(s.trades, trade)
+}
+
+func (s *mockTradeQuoteStrategy) OnQuote(quote Quote) {
+	s.quotes = append(s.quotes, quote)
+}
+
+func TestDispatchEvent(t *testing.T) {
+	t.Parallel()
+
+	trade := Trade{Ticker: "FB", TS: 1699972200000, Seq: 1, Price: 10.5, Size: 100}
+	quote := Quote{Ticker: "FB", TS: 1699972200001, Seq: 2, BidPrice: 10.4, AskPrice: 10.6, BidSize: 10, AskSize: 20}
+
+	events := []MarketEvent{
+		{Trade: &trade},
+		{Quote: &quote},
+		{},
+	}
+
+	plain := &mockPlainStrategy{}
+	tradeOnly := &mockTradeOnlyStrategy{}
+	both := &mockTradeQuoteStrategy{}
+
+	for _, event := range events {
+		dispatchEvent(plain, event)
+		dispatchEvent(tradeOnly, event)
+		dispatchEvent(both, event)
+	}
+
+	if diff := cmp.Diff([]Trade{trade}, tradeOnly.trades); diff != "" {
+		t.Errorf("trade-only strategy trades mismatch (-want +got):\n%s", diff)
+	}
+
+	if diff := cmp.Diff([]Trade{trade}, both.trades); diff != "" {
+		t.Errorf("trade+quote strategy trades mismatch (-want +got):\n%s", diff)
+	}
+
+	if diff := cmp.Diff([]Quote{quote}, both.quotes); diff != "" {
+		t.Errorf("trade+quote strategy quotes mismatch (-want +got):\n%s", diff)
+	}
 }

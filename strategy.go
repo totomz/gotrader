@@ -13,6 +13,32 @@ type Strategy interface {
 	Shutdown()
 }
 
+// TradeStrategy is an optional interface: Cerbero detects it with a type assertion
+// and calls OnTrade for every trade of the stream.
+type TradeStrategy interface {
+	OnTrade(trade Trade)
+}
+
+// QuoteStrategy is an optional interface: Cerbero detects it with a type assertion
+// and calls OnQuote for every quote of the stream.
+type QuoteStrategy interface {
+	OnQuote(quote Quote)
+}
+
+func dispatchEvent(strategy Strategy, event MarketEvent) {
+	if event.Trade != nil {
+		if s, ok := strategy.(TradeStrategy); ok {
+			s.OnTrade(*event.Trade)
+		}
+	}
+
+	if event.Quote != nil {
+		if s, ok := strategy.(QuoteStrategy); ok {
+			s.OnQuote(*event.Quote)
+		}
+	}
+}
+
 // <editor-fold desc="Test Strategy" >
 
 type SimplePsarStrategy struct {
