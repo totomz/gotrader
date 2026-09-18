@@ -254,17 +254,16 @@ func (cerbero *Cerbero) runTicks() (ExecutionResult, error) {
 		InitialCash: cerbero.Broker.AvailableCash(),
 	}
 
-	// Set default values
 	if cerbero.CandleSlotMs == 0 {
 		cerbero.CandleSlotMs = defaultSlotMs
 	}
-
-	cerbero.Strategy.Initialize(cerbero)
 
 	stream, err := cerbero.TickFeed.Run()
 	if err != nil {
 		return ExecutionResult{}, fmt.Errorf("can not run the tick feed: %w", err)
 	}
+
+	cerbero.Strategy.Initialize(cerbero)
 
 	builder := NewCandleBuilder(cerbero.CandleSlotMs)
 	tickBroker, brokerIsTickBroker := cerbero.Broker.(TickBroker)

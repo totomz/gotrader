@@ -2,46 +2,20 @@ package gotrader
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/parquet-go/parquet-go"
 	"golang.org/x/exp/slog"
 )
 
 func writeTradesFixture(t *testing.T, path string, trades []Trade) {
 	t.Helper()
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("Error creating the fixture folder -- %v", err)
-	}
-
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("Error creating the fixture file -- %v", err)
-	}
-
-	rows := make([]parquetTradeRow, len(trades))
-	for i, trade := range trades {
-		rows[i] = tradeToParquetRow(trade)
-	}
-
-	writer := parquet.NewGenericWriter[parquetTradeRow](file)
-	if _, err = writer.Write(rows); err != nil {
-		t.Fatalf("Error writing the fixture rows -- %v", err)
-	}
-
-	if err = writer.Close(); err != nil {
-		t.Fatalf("Error closing the fixture writer -- %v", err)
-	}
-
-	if err = file.Close(); err != nil {
-		t.Fatalf("Error closing the fixture file -- %v", err)
+	if err := writeParquetTrades(path, trades); err != nil {
+		t.Fatalf("Error writing the trades fixture -- %v", err)
 	}
 }
 
@@ -111,31 +85,8 @@ func TestReadParquetTrades_OutOfOrder(t *testing.T) {
 func writeQuotesFixture(t *testing.T, path string, quotes []Quote) {
 	t.Helper()
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("Error creating the fixture folder -- %v", err)
-	}
-
-	file, err := os.Create(path)
-	if err != nil {
-		t.Fatalf("Error creating the fixture file -- %v", err)
-	}
-
-	rows := make([]parquetQuoteRow, len(quotes))
-	for i, quote := range quotes {
-		rows[i] = quoteToParquetRow(quote)
-	}
-
-	writer := parquet.NewGenericWriter[parquetQuoteRow](file)
-	if _, err = writer.Write(rows); err != nil {
-		t.Fatalf("Error writing the fixture rows -- %v", err)
-	}
-
-	if err = writer.Close(); err != nil {
-		t.Fatalf("Error closing the fixture writer -- %v", err)
-	}
-
-	if err = file.Close(); err != nil {
-		t.Fatalf("Error closing the fixture file -- %v", err)
+	if err := writeParquetQuotes(path, quotes); err != nil {
+		t.Fatalf("Error writing the quotes fixture -- %v", err)
 	}
 }
 

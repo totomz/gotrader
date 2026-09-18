@@ -776,3 +776,83 @@ func mergeParquetSources(sources []*parquetSource, stream chan<- MarketEvent) {
 }
 
 // </editor-fold>
+
+// <editor-fold desc="Parquet writers" >
+
+func writeParquetTrades(path string, trades []Trade) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("can not create the folder of the trades file %s: %w", path, err)
+	}
+
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("can not create the trades file %s: %w", path, err)
+	}
+
+	rows := make([]parquetTradeRow, len(trades))
+	for i, trade := range trades {
+		rows[i] = tradeToParquetRow(trade)
+	}
+
+	writer := parquet.NewGenericWriter[parquetTradeRow](file)
+	if _, err = writer.Write(rows); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("can not write the trades file %s: %w", path, err)
+	}
+
+	if err = writer.Close(); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("can not close the writer of the trades file %s: %w", path, err)
+	}
+
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("can not close the trades file %s: %w", path, err)
+	}
+
+	return nil
+}
+
+func writeParquetQuotes(path string, quotes []Quote) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("can not create the folder of the quotes file %s: %w", path, err)
+	}
+
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("can not create the quotes file %s: %w", path, err)
+	}
+
+	rows := make([]parquetQuoteRow, len(quotes))
+	for i, quote := range quotes {
+		rows[i] = quoteToParquetRow(quote)
+	}
+
+	writer := parquet.NewGenericWriter[parquetQuoteRow](file)
+	if _, err = writer.Write(rows); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("can not write the quotes file %s: %w", path, err)
+	}
+
+	if err = writer.Close(); err != nil {
+		_ = file.Close()
+		return fmt.Errorf("can not close the writer of the quotes file %s: %w", path, err)
+	}
+
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("can not close the quotes file %s: %w", path, err)
+	}
+
+	return nil
+}
+
+// WriteParquetTrades writes the trades of one ticker in the parquet layout of section 6 of doc/datamodel.md.
+func WriteParquetTrades(dataFolder string, day time.Time, ticker Symbol, trades []Trade) error {
+	return writeParquetTrades(parquetPathFor(parquetKindTrades, dataFolder, day, ticker), trades)
+}
+
+// WriteParquetQuotes writes the quotes of one ticker in the parquet layout of section 6 of doc/datamodel.md.
+func WriteParquetQuotes(dataFolder string, day time.Time, ticker Symbol, quotes []Quote) error {
+	return writeParquetQuotes(parquetPathFor(parquetKindQuotes, dataFolder, day, ticker), quotes)
+}
+
+// </editor-fold>
