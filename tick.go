@@ -81,3 +81,36 @@ func (q Quote) String() string {
 	return fmt.Sprintf("[%-5s %v] bid:%v x %v ask:%v x %v spread:%v seq:%v valid:%v",
 		q.Ticker, q.Time().Format("15:04:05.000"), q.BidPrice, q.BidSize, q.AskPrice, q.AskSize, q.Spread(), q.Seq, q.IsValid())
 }
+
+type MarketEvent struct {
+	Trade *Trade
+	Quote *Quote
+}
+
+func (e MarketEvent) IsTrade() bool {
+	return e.Trade != nil
+}
+
+func (e MarketEvent) IsQuote() bool {
+	return e.Quote != nil
+}
+
+func (e MarketEvent) TS() int64 {
+	if e.Trade != nil {
+		return e.Trade.TS
+	}
+	if e.Quote != nil {
+		return e.Quote.TS
+	}
+	return 0
+}
+
+func (e MarketEvent) Symbol() Symbol {
+	if e.Trade != nil {
+		return e.Trade.Ticker
+	}
+	if e.Quote != nil {
+		return e.Quote.Ticker
+	}
+	return Symbol("")
+}

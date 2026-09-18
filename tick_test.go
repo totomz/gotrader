@@ -116,3 +116,54 @@ func TestTrade_Time(t *testing.T) {
 		t.Fatalf("Time() nanosecond = %v, want 123000000", got.Nanosecond())
 	}
 }
+
+func TestMarketEvent_Helpers(t *testing.T) {
+	trade := Trade{Ticker: testSymbol, TS: 1700000000123, Seq: 7, Price: 10.5, Size: 100}
+	quote := Quote{Ticker: Symbol("AAPL"), TS: 1700000000456, Seq: 9, BidPrice: 10, AskPrice: 10.5, BidSize: 100, AskSize: 200}
+
+	tests := []struct {
+		name        string
+		event       MarketEvent
+		wantIsTrade bool
+		wantIsQuote bool
+		wantTS      int64
+		wantSymbol  Symbol
+	}{
+		{
+			name:        "trade event",
+			event:       MarketEvent{Trade: &trade},
+			wantIsTrade: true,
+			wantIsQuote: false,
+			wantTS:      trade.TS,
+			wantSymbol:  trade.Ticker,
+		},
+		{
+			name:        "quote event",
+			event:       MarketEvent{Quote: &quote},
+			wantIsTrade: false,
+			wantIsQuote: true,
+			wantTS:      quote.TS,
+			wantSymbol:  quote.Ticker,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.event.IsTrade(); got != tt.wantIsTrade {
+				t.Errorf("IsTrade() = %v, want %v", got, tt.wantIsTrade)
+			}
+
+			if got := tt.event.IsQuote(); got != tt.wantIsQuote {
+				t.Errorf("IsQuote() = %v, want %v", got, tt.wantIsQuote)
+			}
+
+			if diff := cmp.Diff(tt.wantTS, tt.event.TS()); diff != "" {
+				t.Errorf("TS() mismatch (-want +got):\n%s", diff)
+			}
+
+			if diff := cmp.Diff(tt.wantSymbol, tt.event.Symbol()); diff != "" {
+				t.Errorf("Symbol() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
