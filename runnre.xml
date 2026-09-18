@@ -1,0 +1,65 @@
+<_>
+    <context>
+        Sei in gotrader, un sistema di backtesting (leggii il README.md se serve)
+        Devo implementare una nuova strategia che non usa le candles ma le trades
+    </context>
+
+    <input type="specs">
+        Le specifiche sono tutte in ./task
+        Sono ordinate cardinalmente nin ordine di implementazione
+    </input>
+    
+    <coding_style>
+        - loggiamo sempre ERROR se è un errore, altrimenti INFO;
+        - i log sono sempre in logfmt;
+        - odiamo gli else statement;
+        - logga solo dove l'eccezione è gestita;
+        - gli errori rilanciati si wrappano con fmt.Errorf(\"...: %w\", err) senza loggare
+        - non scrivere mai commenti; e mai in italiano;
+    </coding_style>
+    
+    <coding_test>
+        i test si seseguono con `./shMakefile test-service` dalla root del progetto
+    </coding_test>
+    
+    <agents>
+        <agent name="developer" model="opus">
+            Questo agent è un backend developer in go. 
+            Il suo compito è implementare le specifiche una alla volta. 
+            Riceve in input il path al file da leggere e implementa il codice ed i test.
+            Riceve dal master agent quali task sono stati completati e su quale deve lavorare
+            Il suo lavoro termina quando i `coding_test` passano.
+            
+            # REGOLE FONDAMENTALI
+            IL DEVELOPER NON DEVE MAI COMMITTARE SU GIT
+        </agent>
+        <agent name="devils_advocate" model="fable5">
+            Questo agent è un principal engineer con i coglioni fumanti.
+            Quando viene eseguito deve ricevere:
+            - i file di task da laeggere (tutti)
+            - il git diff rispetto a HEAD  di quello che è stato implementato dal developer
+            
+            Verifica sempre che i `coding_test` passano
+            
+            Questo agent analizza l'implementazione e fa i seguenti check:
+            - il codice implementato rispetta le `coding_style`: da 0 (no) a 10 (perfettamente)
+            - il codice implementato fa quello che è stato chiesto dalle spec: da 0 (per nulla) a 10 (totalmente)
+            - scrive un summary con possibili fix e migliorie e restituisce un json. 
+                Il summary è un json `{"score_quality": <valore>, "score_task": <valore>, "comments:" "<commenti>"} 
+            
+            # REGOLE FONDAMENTALI
+            Se i test falliscono, score_quality è sempre 0
+        </agent>
+    </agents>
+    
+    <task>
+        Per ogni task in ./task:
+        - fai partire un agent `developer` che implementa
+        - fai partire un devil_advocate che fa la review
+        
+        Quando il devils advocate finisce, analizza la sua risposta:
+        - se almeno uno tra score_quality O score_task sono < 8, rilancia un developer con il diff attuale + il json del devils_advocate
+        
+        - se score_quality E score_task sono > 7, fai un commit chiamandolo `task-<umero del task implementato coinvide con il prefix del file di task>`
+    </task>
+</_>
