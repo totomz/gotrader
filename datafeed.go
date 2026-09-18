@@ -3,8 +3,11 @@ package gotrader
 import (
 	"bufio"
 	"compress/gzip"
+	"errors"
 	"fmt"
+	"github.com/parquet-go/parquet-go"
 	"golang.org/x/exp/slog"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -345,3 +348,148 @@ func IsNasdaqTradingTime(t time.Time) bool {
 
 	return marketOpen && marketClose
 }
+
+// <editor-fold desc="GenericParquetTrades" >
+
+const (
+	parquetKindTrades    = "trades"
+	parquetKindQuotes    = "quotes"
+	parquetDayLayout     = "2006-01-02"
+	parquetReadBatchSize = 1024
+)
+
+type parquetTradeRow struct {
+	Ticker        string  `parquet:"ticker"`
+	TS            int64   `parquet:"ts"`
+	ParticipantTS int64   `parquet:"participant_ts"`
+	Seq           int64   `parquet:"seq"`
+	Price         float64 `parquet:"price"`
+	Size          int64   `parquet:"size"`
+	Exchange      int32   `parquet:"exchange"`
+	Tape          int32   `parquet:"tape"`
+	Conditions    []int32 `parquet:"conditions,list"`
+	UpdatesLast   bool    `parquet:"updates_last"`
+	UpdatesVolume bool    `parquet:"updates_volume"`
+	IsRTH         bool    `parquet:"is_rth"`
+}
+
+func parquetPathFor(kind, dataFolder string, day time.Time, ticker Symbol) string {
+	return filepath.Join(dataFolder, kind, day.Format(parquetDayLayout), fmt.Sprintf("%s.parquet", ticker))
+}
+
+func tradeFromParquetRow(row parquetTradeRow) Trade {
+	trade := Trade{
+		Ticker:        Symbol(row.Ticker),
+		TS:            row.TS,
+		ParticipantTS: row.ParticipantTS,
+		Seq:           row.Seq,
+		Price:         row.Price,
+		Size:          row.Size,
+		Exchange:      int16(row.Exchange),
+		Tape:          int8(row.Tape),
+		UpdatesLast:   row.UpdatesLast,
+		UpdatesVolume: row.UpdatesVolume,
+		IsRTH:         row.IsRTH,
+	}
+
+	if len(row.Conditions) > 0 {
+		trade.Conditions = make([]int16, len(row.Conditions))
+		for i, condition := range row.Conditions {
+			trade.Conditions[i] = int16(condition)
+		}
+	}
+
+	return trade
+}
+
+func tradeToParquetRow(trade Trade) parquetTradeRow {
+	row := parquetTradeRow{
+		Ticker:        string(trade.Ticker),
+		TS:            trade.TS,
+		ParticipantTS: trade.ParticipantTS,
+		Seq:           trade.Seq,
+		Price:         trade.Price,
+		Size:          trade.Size,
+		Exchange:      int32(trade.Exchange),
+		Tape:          int32(trade.Tape),
+		UpdatesLast:   trade.UpdatesLast,
+		UpdatesVolume: trade.UpdatesVolume,
+		IsRTH:         trade.IsRTH,
+	}
+
+	if len(trade.Conditions) > 0 {
+		row.Conditions = make([]int32, len(trade.Conditions))
+		for i, condition := range trade.Conditions {
+			row.Conditions[i] = int32(condition)
+		}
+	}
+
+	return row
+}
+
+// readParquetTrades streams one trades file in out, one row group at a time, without
+// loading the whole file in memory. Rows are delivered as-is, with no filtering: the only
+// check is the (ts, seq) monotonicity, an out of order row is skipped and never re-sorted.
+// The caller owns out and is responsible for closing it.
+func readParquetTrades(path string, out chan<- Trade) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("can not open the trades file %s: %w", path, err)
+	}
+	defer func() { _ = file.Close() }()
+
+	info, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("can not stat the trades file %s: %w", path, err)
+	}
+
+	parquetFile, err := parquet.OpenFile(file, info.Size())
+	if err != nil {
+		return fmt.Errorf("can not read the trades file %s: %w", path, err)
+	}
+
+	rows := make([]parquetTradeRow, parquetReadBatchSize)
+	lastTS := int64(0)
+	lastSeq := int64(0)
+	isFirst := true
+
+	for _, rowGroup := range parquetFile.RowGroups() {
+		reader := parquet.NewGenericRowGroupReader[parquetTradeRow](rowGroup)
+
+		for {
+			read, readErr := reader.Read(rows)
+
+			for i := 0; i < read; i++ {
+				trade := tradeFromParquetRow(rows[i])
+
+				if !isFirst && (trade.TS < lastTS || (trade.TS == lastTS && trade.Seq < lastSeq)) {
+					slog.Error("skipping an out of order trade", "file", path, "ticker", trade.Ticker,
+						"ts", trade.TS, "seq", trade.Seq, "last_ts", lastTS, "last_seq", lastSeq)
+					continue
+				}
+
+				lastTS = trade.TS
+				lastSeq = trade.Seq
+				isFirst = false
+				out <- trade
+			}
+
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+
+			if readErr != nil {
+				_ = reader.Close()
+				return fmt.Errorf("can not read the trades file %s: %w", path, readErr)
+			}
+		}
+
+		if err = reader.Close(); err != nil {
+			return fmt.Errorf("can not close the reader of the trades file %s: %w", path, err)
+		}
+	}
+
+	return nil
+}
+
+// </editor-fold>
