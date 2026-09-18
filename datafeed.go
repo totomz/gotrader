@@ -373,6 +373,21 @@ type parquetTradeRow struct {
 	IsRTH         bool    `parquet:"is_rth"`
 }
 
+type parquetQuoteRow struct {
+	Ticker      string  `parquet:"ticker"`
+	TS          int64   `parquet:"ts"`
+	Seq         int64   `parquet:"seq"`
+	BidPrice    float64 `parquet:"bid_price"`
+	AskPrice    float64 `parquet:"ask_price"`
+	BidSize     int64   `parquet:"bid_size"`
+	AskSize     int64   `parquet:"ask_size"`
+	BidExchange int32   `parquet:"bid_exchange"`
+	AskExchange int32   `parquet:"ask_exchange"`
+	Condition   int32   `parquet:"condition"`
+	Indicators  []int32 `parquet:"indicators,list"`
+	Tape        int32   `parquet:"tape"`
+}
+
 func parquetPathFor(kind, dataFolder string, day time.Time, ticker Symbol) string {
 	return filepath.Join(dataFolder, kind, day.Format(parquetDayLayout), fmt.Sprintf("%s.parquet", ticker))
 }
@@ -427,10 +442,6 @@ func tradeToParquetRow(trade Trade) parquetTradeRow {
 	return row
 }
 
-// readParquetTrades streams one trades file in out, one row group at a time, without
-// loading the whole file in memory. Rows are delivered as-is, with no filtering: the only
-// check is the (ts, seq) monotonicity, an out of order row is skipped and never re-sorted.
-// The caller owns out and is responsible for closing it.
 func readParquetTrades(path string, out chan<- Trade) error {
 	file, err := os.Open(path)
 	if err != nil {
@@ -486,6 +497,117 @@ func readParquetTrades(path string, out chan<- Trade) error {
 
 		if err = reader.Close(); err != nil {
 			return fmt.Errorf("can not close the reader of the trades file %s: %w", path, err)
+		}
+	}
+
+	return nil
+}
+
+func quoteFromParquetRow(row parquetQuoteRow) Quote {
+	quote := Quote{
+		Ticker:      Symbol(row.Ticker),
+		TS:          row.TS,
+		Seq:         row.Seq,
+		BidPrice:    row.BidPrice,
+		AskPrice:    row.AskPrice,
+		BidSize:     row.BidSize,
+		AskSize:     row.AskSize,
+		BidExchange: int16(row.BidExchange),
+		AskExchange: int16(row.AskExchange),
+		Condition:   int16(row.Condition),
+		Tape:        int8(row.Tape),
+	}
+
+	if len(row.Indicators) > 0 {
+		quote.Indicators = make([]int16, len(row.Indicators))
+		for i, indicator := range row.Indicators {
+			quote.Indicators[i] = int16(indicator)
+		}
+	}
+
+	return quote
+}
+
+func quoteToParquetRow(quote Quote) parquetQuoteRow {
+	row := parquetQuoteRow{
+		Ticker:      string(quote.Ticker),
+		TS:          quote.TS,
+		Seq:         quote.Seq,
+		BidPrice:    quote.BidPrice,
+		AskPrice:    quote.AskPrice,
+		BidSize:     quote.BidSize,
+		AskSize:     quote.AskSize,
+		BidExchange: int32(quote.BidExchange),
+		AskExchange: int32(quote.AskExchange),
+		Condition:   int32(quote.Condition),
+		Tape:        int32(quote.Tape),
+	}
+
+	if len(quote.Indicators) > 0 {
+		row.Indicators = make([]int32, len(quote.Indicators))
+		for i, indicator := range quote.Indicators {
+			row.Indicators[i] = int32(indicator)
+		}
+	}
+
+	return row
+}
+
+func readParquetQuotes(path string, out chan<- Quote) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("can not open the quotes file %s: %w", path, err)
+	}
+	defer func() { _ = file.Close() }()
+
+	info, err := file.Stat()
+	if err != nil {
+		return fmt.Errorf("can not stat the quotes file %s: %w", path, err)
+	}
+
+	parquetFile, err := parquet.OpenFile(file, info.Size())
+	if err != nil {
+		return fmt.Errorf("can not read the quotes file %s: %w", path, err)
+	}
+
+	rows := make([]parquetQuoteRow, parquetReadBatchSize)
+	lastTS := int64(0)
+	lastSeq := int64(0)
+	isFirst := true
+
+	for _, rowGroup := range parquetFile.RowGroups() {
+		reader := parquet.NewGenericRowGroupReader[parquetQuoteRow](rowGroup)
+
+		for {
+			read, readErr := reader.Read(rows)
+
+			for i := 0; i < read; i++ {
+				quote := quoteFromParquetRow(rows[i])
+
+				if !isFirst && (quote.TS < lastTS || (quote.TS == lastTS && quote.Seq < lastSeq)) {
+					slog.Error("skipping an out of order quote", "file", path, "ticker", quote.Ticker,
+						"ts", quote.TS, "seq", quote.Seq, "last_ts", lastTS, "last_seq", lastSeq)
+					continue
+				}
+
+				lastTS = quote.TS
+				lastSeq = quote.Seq
+				isFirst = false
+				out <- quote
+			}
+
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+
+			if readErr != nil {
+				_ = reader.Close()
+				return fmt.Errorf("can not read the quotes file %s: %w", path, readErr)
+			}
+		}
+
+		if err = reader.Close(); err != nil {
+			return fmt.Errorf("can not close the reader of the quotes file %s: %w", path, err)
 		}
 	}
 
