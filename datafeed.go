@@ -3,6 +3,7 @@ package gotrader
 import (
 	"bufio"
 	"compress/gzip"
+	"container/heap"
 	"errors"
 	"fmt"
 	"github.com/parquet-go/parquet-go"
@@ -612,6 +613,166 @@ func readParquetQuotes(path string, out chan<- Quote) error {
 	}
 
 	return nil
+}
+
+type GenericParquetTrades struct {
+	DataFolder string
+	Day        time.Time
+	Symbols    []Symbol
+}
+
+func (f *GenericParquetTrades) Run() (chan MarketEvent, error) {
+	var tradesPaths []string
+	var quotesPaths []string
+
+	for _, symbol := range f.Symbols {
+		tradesPath := parquetPathFor(parquetKindTrades, f.DataFolder, f.Day, symbol)
+		if _, err := os.Stat(tradesPath); err != nil {
+			return nil, fmt.Errorf("can not open the trades file %s: %w", tradesPath, err)
+		}
+		tradesPaths = append(tradesPaths, tradesPath)
+
+		quotesPath := parquetPathFor(parquetKindQuotes, f.DataFolder, f.Day, symbol)
+		_, err := os.Stat(quotesPath)
+		if errors.Is(err, os.ErrNotExist) {
+			slog.Info("the quotes file is missing, feeding the trades only", "ticker", symbol, "file", quotesPath)
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("can not open the quotes file %s: %w", quotesPath, err)
+		}
+		quotesPaths = append(quotesPaths, quotesPath)
+	}
+
+	var sources []*parquetSource
+	for _, path := range tradesPaths {
+		sources = append(sources, newParquetTradeSource(path))
+	}
+	for _, path := range quotesPaths {
+		sources = append(sources, newParquetQuoteSource(path))
+	}
+
+	stream := make(chan MarketEvent, tickFeedBufferSize)
+	go mergeParquetSources(sources, stream)
+
+	return stream, nil
+}
+
+func marketEventSeq(event MarketEvent) int64 {
+	if event.Trade != nil {
+		return event.Trade.Seq
+	}
+	if event.Quote != nil {
+		return event.Quote.Seq
+	}
+	return 0
+}
+
+func lessMarketEvent(a, b MarketEvent) bool {
+	if a.TS() != b.TS() {
+		return a.TS() < b.TS()
+	}
+	if a.IsQuote() != b.IsQuote() {
+		return a.IsQuote()
+	}
+	if marketEventSeq(a) != marketEventSeq(b) {
+		return marketEventSeq(a) < marketEventSeq(b)
+	}
+	return a.Symbol() < b.Symbol()
+}
+
+type parquetSource struct {
+	head MarketEvent
+	next func() (MarketEvent, bool)
+}
+
+func newParquetTradeSource(path string) *parquetSource {
+	trades := make(chan Trade, parquetReadBatchSize)
+
+	go func() {
+		defer close(trades)
+		if err := readParquetTrades(path, trades); err != nil {
+			slog.Error("can not read the trades file, the reader is stopped", "file", path, "error", err)
+		}
+	}()
+
+	return &parquetSource{
+		next: func() (MarketEvent, bool) {
+			trade, ok := <-trades
+			if !ok {
+				return MarketEvent{}, false
+			}
+			return MarketEvent{Trade: &trade}, true
+		},
+	}
+}
+
+func newParquetQuoteSource(path string) *parquetSource {
+	quotes := make(chan Quote, parquetReadBatchSize)
+
+	go func() {
+		defer close(quotes)
+		if err := readParquetQuotes(path, quotes); err != nil {
+			slog.Error("can not read the quotes file, the reader is stopped", "file", path, "error", err)
+		}
+	}()
+
+	return &parquetSource{
+		next: func() (MarketEvent, bool) {
+			quote, ok := <-quotes
+			if !ok {
+				return MarketEvent{}, false
+			}
+			return MarketEvent{Quote: &quote}, true
+		},
+	}
+}
+
+type parquetSourceHeap []*parquetSource
+
+func (h parquetSourceHeap) Len() int { return len(h) }
+
+func (h parquetSourceHeap) Less(i, j int) bool { return lessMarketEvent(h[i].head, h[j].head) }
+
+func (h parquetSourceHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+
+func (h *parquetSourceHeap) Push(x any) { *h = append(*h, x.(*parquetSource)) }
+
+func (h *parquetSourceHeap) Pop() any {
+	old := *h
+	last := len(old) - 1
+	source := old[last]
+	*h = old[:last]
+	return source
+}
+
+func mergeParquetSources(sources []*parquetSource, stream chan<- MarketEvent) {
+	defer close(stream)
+
+	heads := &parquetSourceHeap{}
+	for _, source := range sources {
+		event, ok := source.next()
+		if !ok {
+			continue
+		}
+		source.head = event
+		*heads = append(*heads, source)
+	}
+	heap.Init(heads)
+
+	for heads.Len() > 0 {
+		source := (*heads)[0]
+		stream <- source.head
+
+		event, ok := source.next()
+		if !ok {
+			heap.Pop(heads)
+			continue
+		}
+
+		source.head = event
+		heap.Fix(heads, 0)
+	}
 }
 
 // </editor-fold>
