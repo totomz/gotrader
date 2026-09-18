@@ -195,6 +195,5 @@ notify_deploy() {
 EOM
 )
   
-  curl -X POST -H 'Content-type: application/json' --data "${message}" https://hooks.slack.com/services/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
   
 }
