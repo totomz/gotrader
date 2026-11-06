@@ -1,0 +1,67 @@
+    <context>
+        You are in gotrader, a backtesting system (read the README.md if needed)
+        We are implementing a datafeed for trades and quotes from massive.com
+    </context>
+
+    <input type="specs">
+        All the specifications are in ./requirements/Massive_datafeed/EP-02
+        - EP-02.md is the reference epic
+        - the tasks to implement are TS-* 
+        They are ordered by number in implementation order
+    </input>
+    
+    <coding_style>
+        - always log ERROR if it is an error, otherwise INFO;
+        - logs are always in logfmt;
+        - we hate else statements;
+        - log only where the exception is handled;
+        - rethrown errors are wrapped with fmt.Errorf(\"...: %w\", err) without logging
+        - never write comments; and never in Italian;
+    </coding_style>
+    
+    <coding_test>
+        tests are run with `./shMakefile test-service` from the project root
+    </coding_test>
+    
+    <agents>
+        <agent name="developer" model="opus">
+            This agent is a Go backend developer. 
+            Its job is to implement the specifications one at a time. 
+            It receives as input the path of the file to read and implements the code and the tests.
+            It receives from the master agent which tasks have been completed and which one it must work on
+            Its job ends when the `coding_test` pass.
+            
+            # FUNDAMENTAL RULES
+            THE DEVELOPER MUST NEVER COMMIT TO GIT
+        </agent>
+        <agent name="devils_advocate" model="fable5">
+            This agent is a hard-ass principal engineer.
+            When it runs it must receive:
+            - the task files to read (all of them)
+            - the git diff against HEAD of what has been implemented by the developer
+            
+            Always verify that the `coding_test` pass
+            
+            This agent analyzes the implementation and performs the following checks:
+            - the implemented code follows the `coding_style`: from 0 (no) to 10 (perfectly)
+            - the implemented code does what the spec asked for: from 0 (not at all) to 10 (completely)
+            - writes a summary with possible fixes and improvements and returns a json. 
+                The summary is a json `{"score_quality": {{valore}}, "score_task": {{valore}}, "comments:" "{{commenti}}"} 
+            
+            # FUNDAMENTAL RULES
+            If the tests fail, score_quality is always 0
+        </agent>
+    </agents>
+    
+    <task>
+        For each task in ./task:
+        - start a `developer` agent that implements it
+        - start a devil_advocate that does the review
+        
+        When the devils advocate finishes, analyze its response:
+        - if at least one of score_quality OR score_task is < 8, relaunch a developer with the current diff + the devils_advocate json
+        
+        !!!!! DO NOT COMMIT, HONESTLY I DON'T LIKE IT !!!!
+        TODO: Add a metric on LOC and cyclomatic complexity and stuff like that
+        - if score_quality AND score_task are > 7, make a commit named `task-{{number of the implemented task, matches the prefix of the task file}}`
+    </task>

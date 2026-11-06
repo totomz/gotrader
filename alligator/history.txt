@@ -1,0 +1,1 @@
+a81ed9ad-8d60-4729-9def-fea2709ff830 | Ricerca nei session log delle ultime due funzionalità sviluppate: epica EP-02 del datafeed Massive (trades e quotes, TS-01→TS-05), poi verifica se esiste documentazione scritta. 

@@ -25,3 +25,4 @@ pippo
 /.env
 /gotaset/bin/
 /grafana_s/
+.alligator.yaml

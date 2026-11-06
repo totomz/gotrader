@@ -1,3 +1,17 @@
+❯ >  2. 21–22 set: implementazione dell'epica EP-02, il datafeed Massive per trades e quotes (TS-01→TS-05).
+  abbiamo qualcosa di scritto da qualche parte?
+
+  Searched for 1 pattern, listed 1 directory (ctrl+o to expand)
+
+⏺ Sì, tutto in requirements/Massive_datafeed/, scritto il 21 set:
+
+  - analysis.md: l'analisi
+  - epic-02-massive-datafeed.md: la bozza dell'epica
+  - EP-02/EP-02.md: l'epica
+  - EP-02/TS-01.md … TS-05.md: i task
+
+  Il datafeed Massive compare anche in requirements/E01-Add support for tickers/datamodel.md.
+
 # go-trader
 ![build status](https://github.com/totomz/autotrader/actions/workflows/pipeline.yml/badge.svg)
 
